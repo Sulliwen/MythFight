@@ -1,0 +1,9 @@
+{
+    "name": "mythfight",
+    "private": true,
+    "version": "0.1.0",
+    "scripts": {
+        "dev:web": "pnpm --filter @mythfight/web dev",
+        "dev:server": "pnpm --filter @mythfight/game-server dev"
+    }
+}
