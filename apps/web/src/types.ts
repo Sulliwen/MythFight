@@ -30,4 +30,10 @@ export type SnapshotMsg = {
   units: Unit[];
 };
 
-export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg;
+export type PongMsg = {
+  type: "pong";
+  clientTime: number;
+  serverTime: number;
+};
+
+export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;

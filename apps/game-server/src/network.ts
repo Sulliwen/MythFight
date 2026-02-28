@@ -54,6 +54,23 @@ export function handleConnection(
       return;
     }
 
+    if (message.type === "ping") {
+      const clientTime = message.clientTime;
+      if (typeof clientTime !== "number") {
+        socket.send(JSON.stringify({ type: "error", reason: "invalid_ping_payload" }));
+        return;
+      }
+
+      socket.send(
+        JSON.stringify({
+          type: "pong",
+          clientTime,
+          serverTime: Date.now(),
+        })
+      );
+      return;
+    }
+
     socket.send(JSON.stringify({ type: "error", reason: "unknown_message_type" }));
   });
 

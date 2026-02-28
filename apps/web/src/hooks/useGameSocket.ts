@@ -14,10 +14,22 @@ export function useGameSocket() {
   const [unitsCount, setUnitsCount] = useState<number>(0);
   const [snapshots, setSnapshots] = useState<SnapshotMsg[]>([]);
   const [fps, setFps] = useState<number>(0);
+  const [rttMs, setRttMs] = useState<number>(0);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8082");
     wsRef.current = ws;
+    let pingIntervalId: number | null = null;
+
+    const sendPing = () => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(
+        JSON.stringify({
+          type: "ping",
+          clientTime: Date.now(),
+        })
+      );
+    };
 
     ws.onopen = () => {
       setStatus("connected");
@@ -28,6 +40,9 @@ export function useGameSocket() {
           playerId: "player1",
         })
       );
+
+      sendPing();
+      pingIntervalId = window.setInterval(sendPing, 1000);
     };
 
     ws.onmessage = (event) => {
@@ -37,6 +52,11 @@ export function useGameSocket() {
 
         if (data.type === "welcome") {
           setPlayerId(data.playerId);
+          return;
+        }
+
+        if (data.type === "pong") {
+          setRttMs(Math.max(0, Date.now() - data.clientTime));
           return;
         }
 
@@ -62,9 +82,15 @@ export function useGameSocket() {
 
     ws.onclose = () => {
       setStatus("closed");
+      if (pingIntervalId !== null) {
+        window.clearInterval(pingIntervalId);
+      }
     };
 
     return () => {
+      if (pingIntervalId !== null) {
+        window.clearInterval(pingIntervalId);
+      }
       ws.close();
     };
   }, []);
@@ -107,6 +133,7 @@ export function useGameSocket() {
     unitsCount,
     snapshots,
     fps,
+    rttMs,
     sendSpawn,
   };
 }
