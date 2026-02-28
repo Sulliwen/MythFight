@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ServerMsg, SnapshotMsg } from "../types";
+import type { PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
 
-export function useGameSocket() {
+export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
   const simulatedLagRef = useRef<number>(0);
   const pendingSnapshotTimersRef = useRef<number[]>([]);
@@ -52,7 +52,7 @@ export function useGameSocket() {
         JSON.stringify({
           type: "join",
           roomId: "local",
-          playerId: "player1",
+          playerId: playerIdInput,
         })
       );
 
@@ -117,7 +117,7 @@ export function useGameSocket() {
       pendingSnapshotTimersRef.current = [];
       ws.close();
     };
-  }, []);
+  }, [playerIdInput]);
 
   function updateSimulatedLagMs(value: number) {
     const sanitized = Number.isFinite(value) ? Math.max(0, value) : 0;

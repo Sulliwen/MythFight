@@ -2,8 +2,12 @@ import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
+import type { PlayerId } from "./types";
 
 function App() {
+  const qsPlayer = new URLSearchParams(window.location.search).get("player");
+  const selectedPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
+
   const {
     status,
     playerId,
@@ -17,7 +21,7 @@ function App() {
     lastMessage,
     snapshots,
     sendSpawn,
-  } = useGameSocket();
+  } = useGameSocket(selectedPlayer);
 
   return (
     <main style={{ padding: 24, fontFamily: "sans-serif" }}>
