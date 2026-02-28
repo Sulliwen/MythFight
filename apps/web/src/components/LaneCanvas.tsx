@@ -86,16 +86,20 @@ function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number): Array<
 export function LaneCanvas({ snapshots }: LaneCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const snapshotsRef = useRef<SnapshotMsg[]>([]);
-  snapshotsRef.current = snapshots;
+
+  useEffect(() => {
+    snapshotsRef.current = snapshots;
+  }, [snapshots]);
 
   useEffect(() => {
     let destroyed = false;
     let app: Application | null = null;
     let staticG: Graphics | null = null;
     let unitsG: Graphics | null = null;
+    const host = hostRef.current;
 
     const init = async () => {
-      if (!hostRef.current) return;
+      if (!host) return;
 
       const pixiApp = new Application();
       await pixiApp.init({
@@ -111,7 +115,7 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
       }
 
       app = pixiApp;
-      hostRef.current.appendChild(pixiApp.canvas);
+      host.appendChild(pixiApp.canvas);
 
       staticG = new Graphics();
       unitsG = new Graphics();
@@ -156,8 +160,8 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
       if (app) {
         app.destroy(true, { children: true });
       }
-      if (hostRef.current) {
-        hostRef.current.innerHTML = "";
+      if (host) {
+        host.innerHTML = "";
       }
     };
   }, []);

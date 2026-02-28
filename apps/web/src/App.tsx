@@ -4,8 +4,20 @@ import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 
 function App() {
-  const { status, playerId, serverTick, fps, rttMs, castleHp, unitsCount, lastMessage, snapshots, sendSpawn } =
-    useGameSocket();
+  const {
+    status,
+    playerId,
+    serverTick,
+    fps,
+    rttMs,
+    simulatedLagMs,
+    setSimulatedLagMs,
+    castleHp,
+    unitsCount,
+    lastMessage,
+    snapshots,
+    sendSpawn,
+  } = useGameSocket();
 
   return (
     <main style={{ padding: 24, fontFamily: "sans-serif" }}>
@@ -17,6 +29,8 @@ function App() {
         serverTick={serverTick}
         fps={fps}
         rttMs={rttMs}
+        simulatedLagMs={simulatedLagMs}
+        onSimulatedLagChange={setSimulatedLagMs}
         castleHp={castleHp}
         unitsCount={unitsCount}
         lastMessage={lastMessage}

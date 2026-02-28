@@ -5,6 +5,8 @@ type SocketStatus = "connecting" | "connected" | "error" | "closed";
 
 export function useGameSocket() {
   const wsRef = useRef<WebSocket | null>(null);
+  const simulatedLagRef = useRef<number>(0);
+  const pendingSnapshotTimersRef = useRef<number[]>([]);
 
   const [status, setStatus] = useState<SocketStatus>("connecting");
   const [playerId, setPlayerId] = useState<string>("(none)");
@@ -15,6 +17,19 @@ export function useGameSocket() {
   const [snapshots, setSnapshots] = useState<SnapshotMsg[]>([]);
   const [fps, setFps] = useState<number>(0);
   const [rttMs, setRttMs] = useState<number>(0);
+  const [simulatedLagMs, setSimulatedLagMs] = useState<number>(0);
+
+  const applySnapshot = (data: SnapshotMsg) => {
+    setServerTick(data.tick);
+    setCastleHp(data.castle);
+    setUnitsCount(data.units.length);
+
+    setSnapshots((prev) => {
+      const next = [...prev, data];
+      if (next.length > 40) next.shift();
+      return next;
+    });
+  };
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8082");
@@ -61,15 +76,20 @@ export function useGameSocket() {
         }
 
         if (data.type === "snapshot") {
-          setServerTick(data.tick);
-          setCastleHp(data.castle);
-          setUnitsCount(data.units.length);
+          const lag = simulatedLagRef.current;
+          if (lag <= 0) {
+            applySnapshot(data);
+            return;
+          }
 
-          setSnapshots((prev) => {
-            const next = [...prev, data];
-            if (next.length > 40) next.shift();
-            return next;
-          });
+          const timerId = window.setTimeout(() => {
+            applySnapshot(data);
+            pendingSnapshotTimersRef.current = pendingSnapshotTimersRef.current.filter(
+              (id) => id !== timerId
+            );
+          }, lag);
+
+          pendingSnapshotTimersRef.current.push(timerId);
         }
       } catch {
         setLastMessage(String(event.data));
@@ -91,9 +111,19 @@ export function useGameSocket() {
       if (pingIntervalId !== null) {
         window.clearInterval(pingIntervalId);
       }
+      for (const timerId of pendingSnapshotTimersRef.current) {
+        window.clearTimeout(timerId);
+      }
+      pendingSnapshotTimersRef.current = [];
       ws.close();
     };
   }, []);
+
+  function updateSimulatedLagMs(value: number) {
+    const sanitized = Number.isFinite(value) ? Math.max(0, value) : 0;
+    simulatedLagRef.current = sanitized;
+    setSimulatedLagMs(sanitized);
+  }
 
   useEffect(() => {
     let rafId = 0;
@@ -134,6 +164,8 @@ export function useGameSocket() {
     snapshots,
     fps,
     rttMs,
+    simulatedLagMs,
+    setSimulatedLagMs: updateSimulatedLagMs,
     sendSpawn,
   };
 }
