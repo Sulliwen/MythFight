@@ -1,9 +1,10 @@
 import { Hud } from "./components/Hud";
+import { LaneCanvas } from "./components/LaneCanvas";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 
 function App() {
-  const { status, playerId, serverTick, castleHp, unitsCount, lastMessage, sendSpawn } =
+  const { status, playerId, serverTick, fps, castleHp, unitsCount, lastMessage, snapshots, sendSpawn } =
     useGameSocket();
 
   return (
@@ -14,12 +15,14 @@ function App() {
         status={status}
         playerId={playerId}
         serverTick={serverTick}
+        fps={fps}
         castleHp={castleHp}
         unitsCount={unitsCount}
         lastMessage={lastMessage}
       />
 
       <SpawnButton onSpawn={sendSpawn} disabled={status !== "connected"} />
+      <LaneCanvas snapshots={snapshots} />
     </main>
   );
 }

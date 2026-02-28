@@ -30,7 +30,4 @@ export type SnapshotMsg = {
   units: Unit[];
 };
 
-export type ServerMsg =
-  | WelcomeMsg
-  | ErrorMsg
-  | SnapshotMsg;
+export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ServerMsg } from "../types";
+import type { ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
 
@@ -12,6 +12,8 @@ export function useGameSocket() {
   const [serverTick, setServerTick] = useState<number>(0);
   const [castleHp, setCastleHp] = useState({ player1: 0, player2: 0 });
   const [unitsCount, setUnitsCount] = useState<number>(0);
+  const [snapshots, setSnapshots] = useState<SnapshotMsg[]>([]);
+  const [fps, setFps] = useState<number>(0);
 
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8082");
@@ -42,6 +44,12 @@ export function useGameSocket() {
           setServerTick(data.tick);
           setCastleHp(data.castle);
           setUnitsCount(data.units.length);
+
+          setSnapshots((prev) => {
+            const next = [...prev, data];
+            if (next.length > 40) next.shift();
+            return next;
+          });
         }
       } catch {
         setLastMessage(String(event.data));
@@ -61,6 +69,29 @@ export function useGameSocket() {
     };
   }, []);
 
+  useEffect(() => {
+    let rafId = 0;
+    let frames = 0;
+    let lastReport = performance.now();
+
+    const loop = (now: number) => {
+      frames += 1;
+      const elapsed = now - lastReport;
+      if (elapsed >= 500) {
+        setFps(Math.round((frames * 1000) / elapsed));
+        frames = 0;
+        lastReport = now;
+      }
+      rafId = requestAnimationFrame(loop);
+    };
+
+    rafId = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, []);
+
   function sendSpawn() {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -74,6 +105,8 @@ export function useGameSocket() {
     serverTick,
     castleHp,
     unitsCount,
+    snapshots,
+    fps,
     sendSpawn,
   };
 }
