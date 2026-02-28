@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
+const DEFAULT_WS_URL = "ws://localhost:8082";
+const WS_URL = import.meta.env.VITE_WS_URL ?? DEFAULT_WS_URL;
 
 export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
@@ -32,7 +34,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
   };
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8082");
+    const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     let pingIntervalId: number | null = null;
 
