@@ -37,3 +37,18 @@ export type PongMsg = {
 };
 
 export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;
+
+export type LaneEditorElementType = "board" | "castle";
+
+export type LaneEditorSelection = {
+  id: "lane-board" | "castle-player1" | "castle-player2";
+  label: string;
+  elementType: LaneEditorElementType;
+  htmlTarget: string;
+  cssTarget: string;
+  tsTarget: string;
+  position: Record<string, number>;
+  size: Record<string, number>;
+  suggestedTs: string;
+  interactionHint: string;
+};
