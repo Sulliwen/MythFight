@@ -16,6 +16,7 @@ function App() {
     rttMs,
     simulatedLagMs,
     setSimulatedLagMs,
+    showSnapshotDebug,
     castleHp,
     unitsCount,
     lastMessage,
@@ -35,6 +36,7 @@ function App() {
         rttMs={rttMs}
         simulatedLagMs={simulatedLagMs}
         onSimulatedLagChange={setSimulatedLagMs}
+        showSnapshotDebug={showSnapshotDebug}
         castleHp={castleHp}
         unitsCount={unitsCount}
         lastMessage={lastMessage}

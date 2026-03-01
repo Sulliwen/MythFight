@@ -17,3 +17,5 @@ node_modules/
 # Local env
 .env
 .env.*
+!.env.example
+!**/.env.example

@@ -6,6 +6,7 @@ type HudProps = {
   rttMs: number;
   simulatedLagMs: number;
   onSimulatedLagChange: (value: number) => void;
+  showSnapshotDebug: boolean;
   castleHp: {
     player1: number;
     player2: number;
@@ -23,6 +24,7 @@ export function Hud(props: HudProps) {
     rttMs,
     simulatedLagMs,
     onSimulatedLagChange,
+    showSnapshotDebug,
     castleHp,
     unitsCount,
     lastMessage,
@@ -35,6 +37,7 @@ export function Hud(props: HudProps) {
       <p>Server tick: {serverTick}</p>
       <p>FPS: {fps}</p>
       <p>RTT: {rttMs} ms</p>
+      <p>Snapshot debug: {showSnapshotDebug ? "on" : "off"}</p>
       <label style={{ display: "block", marginBottom: 8 }}>
         Simulated lag:
         <select
