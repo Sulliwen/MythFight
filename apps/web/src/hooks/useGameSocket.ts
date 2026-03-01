@@ -61,6 +61,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
   }, [showSnapshotDebug]);
 
   useEffect(() => {
+    if (import.meta.env.PROD && WS_URL.startsWith("ws://")) {
+      console.warn("VITE_WS_URL should use wss:// in production for secure PWA deployments.");
+    }
+
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     let pingIntervalId: number | null = null;

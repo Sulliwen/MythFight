@@ -1,73 +1,36 @@
-# React + TypeScript + Vite
+# MythFight Web Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Client React + Vite pour afficher l'etat de partie recu depuis le serveur WebSocket.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- `pnpm --filter @mythfight/web dev`
+- `pnpm --filter @mythfight/web build`
+- `pnpm --filter @mythfight/web preview`
+- `pnpm --filter @mythfight/web lint`
 
-## React Compiler
+## Variables d'environnement
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Copie `.env.example` vers `.env.local`.
 
-## Expanding the ESLint configuration
+- `VITE_WS_URL`
+  - Dev: `ws://localhost:8082`
+  - Production PWA: `wss://<game-server-public>`
+- `VITE_SHOW_SNAPSHOT_DEBUG`
+- `VITE_SHOW_DEBUG_HUD`
+- `VITE_SHOW_CORE_STATS`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## PWA (mobile)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+La web app est installable (Android/iOS) avec:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- `manifest.webmanifest`
+- service worker auto-update via `vite-plugin-pwa`
+- fallback offline minimal (app shell disponible, gameplay online indisponible sans serveur)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Test mobile
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. Deployer `apps/web` sur Vercel.
+2. Configurer `VITE_WS_URL=wss://<game-server-public>`.
+3. Ouvrir l'URL depuis mobile.
+4. Installer depuis le navigateur (`Installer` sur Android/desktop Chromium, `Ajouter a l'ecran d'accueil` sur iOS).

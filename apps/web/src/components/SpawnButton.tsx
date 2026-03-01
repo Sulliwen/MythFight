@@ -12,7 +12,7 @@ export function SpawnButton({
   className,
 }: SpawnButtonProps) {
   return (
-    <button onClick={onSpawn} disabled={disabled} className={className}>
+    <button type="button" onClick={onSpawn} disabled={disabled} className={className}>
       {label}
     </button>
   );

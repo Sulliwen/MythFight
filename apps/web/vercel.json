@@ -1,0 +1,4 @@
+{
+  "buildCommand": "pnpm --filter @mythfight/web build",
+  "outputDirectory": "dist"
+}
