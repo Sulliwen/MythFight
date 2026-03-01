@@ -19,7 +19,7 @@ function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
-  const [debugPanelVisible, setDebugPanelVisible] = useState(true);
+  const [debugPanelVisible, setDebugPanelVisible] = useState(false);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
   const [editorMode, setEditorMode] = useState(false);
   const [editorSelection, setEditorSelection] = useState<LaneEditorSelection | null>(null);
