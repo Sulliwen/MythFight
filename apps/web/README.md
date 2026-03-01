@@ -16,6 +16,7 @@ Copie `.env.example` vers `.env.local`.
 - `VITE_WS_URL`
   - Dev: `ws://localhost:8082`
   - Production PWA: `wss://<game-server-public>`
+  - Formats acceptes: `ws://`, `wss://`, `http://`, `https://` (normalisation automatique vers WebSocket)
 
 Les options debug (affichage panel + logs snapshot) sont controlees directement dans l'UI.
 

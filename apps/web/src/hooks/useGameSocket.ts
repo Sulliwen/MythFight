@@ -2,8 +2,67 @@ import { useEffect, useRef, useState } from "react";
 import type { PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
-const DEFAULT_WS_URL = "ws://localhost:8082";
-const WS_URL = import.meta.env.VITE_WS_URL ?? DEFAULT_WS_URL;
+const DEFAULT_DEV_WS_URL = "ws://localhost:8082";
+
+function getFallbackWebSocketUrl(): string {
+  if (import.meta.env.DEV) {
+    return DEFAULT_DEV_WS_URL;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}`;
+}
+
+function normalizeWebSocketUrl(rawValue: string): string {
+  const forceSecureWs = window.location.protocol === "https:";
+  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(rawValue);
+  const withProtocol = hasProtocol ? rawValue : `${forceSecureWs ? "wss" : "ws"}://${rawValue}`;
+
+  const parsed = new URL(withProtocol);
+
+  if (parsed.protocol === "http:") {
+    parsed.protocol = "ws:";
+  } else if (parsed.protocol === "https:") {
+    parsed.protocol = "wss:";
+  }
+
+  if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
+    throw new Error(`Unsupported WebSocket protocol: ${parsed.protocol}`);
+  }
+
+  if (forceSecureWs && parsed.protocol === "ws:") {
+    parsed.protocol = "wss:";
+    console.warn("Upgrading ws:// to wss:// because the app is served over HTTPS.");
+  }
+
+  return parsed.toString();
+}
+
+function resolveWebSocketUrl(): string {
+  const fallbackUrl = getFallbackWebSocketUrl();
+  const configuredValue = import.meta.env.VITE_WS_URL?.trim();
+
+  if (!configuredValue) {
+    if (import.meta.env.PROD) {
+      console.warn(
+        `VITE_WS_URL is not configured in production. Falling back to ${fallbackUrl}.`
+      );
+    }
+    return fallbackUrl;
+  }
+
+  try {
+    return normalizeWebSocketUrl(configuredValue);
+  } catch (error) {
+    console.warn(
+      `Invalid VITE_WS_URL value "${configuredValue}". Falling back to ${fallbackUrl}.`,
+      error
+    );
+    return fallbackUrl;
+  }
+}
+
+const WS_URL = resolveWebSocketUrl();
 
 export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
