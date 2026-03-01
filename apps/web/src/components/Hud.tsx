@@ -1,4 +1,5 @@
 type HudProps = {
+  mode?: "full" | "core-stats";
   status: string;
   playerId: string;
   serverTick: number;
@@ -17,6 +18,7 @@ type HudProps = {
 
 export function Hud(props: HudProps) {
   const {
+    mode = "full",
     status,
     playerId,
     serverTick,
@@ -29,6 +31,18 @@ export function Hud(props: HudProps) {
     unitsCount,
     lastMessage,
   } = props;
+
+  if (mode === "core-stats") {
+    return (
+      <>
+        <p>Player: {playerId}</p>
+        <p>FPS: {fps}</p>
+        <p>RTT: {rttMs} ms</p>
+        <p>Castle HP player1: {castleHp.player1}</p>
+        <p>Castle HP player2: {castleHp.player2}</p>
+      </>
+    );
+  }
 
   return (
     <>

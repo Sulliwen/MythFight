@@ -17,10 +17,16 @@ function resolveDebugHudEnabled(): boolean {
   return envValue ?? import.meta.env.DEV;
 }
 
+function resolveCoreStatsEnabled(): boolean {
+  const envValue = parseBooleanLike(import.meta.env.VITE_SHOW_CORE_STATS ?? null);
+  return envValue ?? import.meta.env.DEV;
+}
+
 function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const selectedPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const showDebugHud = resolveDebugHudEnabled();
+  const showCoreStats = resolveCoreStatsEnabled();
 
   const {
     status,
@@ -44,6 +50,24 @@ function App() {
 
       {showDebugHud && (
         <Hud
+          mode="full"
+          status={status}
+          playerId={playerId}
+          serverTick={serverTick}
+          fps={fps}
+          rttMs={rttMs}
+          simulatedLagMs={simulatedLagMs}
+          onSimulatedLagChange={setSimulatedLagMs}
+          showSnapshotDebug={showSnapshotDebug}
+          castleHp={castleHp}
+          unitsCount={unitsCount}
+          lastMessage={lastMessage}
+        />
+      )}
+
+      {!showDebugHud && showCoreStats && (
+        <Hud
+          mode="core-stats"
           status={status}
           playerId={playerId}
           serverTick={serverTick}
