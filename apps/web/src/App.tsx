@@ -1,3 +1,5 @@
+import { useState } from "react";
+import "./App.css";
 import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
 import { SpawnButton } from "./components/SpawnButton";
@@ -24,9 +26,11 @@ function resolveCoreStatsEnabled(): boolean {
 
 function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
-  const selectedPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
+  const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const showDebugHud = resolveDebugHudEnabled();
   const showCoreStats = resolveCoreStatsEnabled();
+  const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
+  const [debugPanelVisible, setDebugPanelVisible] = useState(true);
 
   const {
     status,
@@ -37,29 +41,50 @@ function App() {
     simulatedLagMs,
     setSimulatedLagMs,
     showSnapshotDebug,
+    toggleSnapshotDebug,
     castleHp,
     unitsCount,
     lastMessage,
     snapshots,
     sendSpawn,
     sendNewGame,
-  } = useGameSocket(selectedPlayer);
+  } = useGameSocket(controlledPlayer);
 
   return (
-    <main style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1>MythFight POC</h1>
+    <main className="app-shell">
+      <div className="app-title">MythFight POC</div>
 
-      {showDebugHud && (
+      <div className="action-dock">
+        <SpawnButton className="action-btn" onSpawn={sendSpawn} disabled={status !== "connected"} />
+        <SpawnButton
+          className="action-btn action-btn--alt"
+          onSpawn={sendNewGame}
+          disabled={status !== "connected"}
+          label="New game"
+        />
+        {showDebugHud && (
+          <SpawnButton
+            className={`action-btn ${debugPanelVisible ? "action-btn--debug-on" : "action-btn--debug-off"}`}
+            onSpawn={() => setDebugPanelVisible((prev) => !prev)}
+            label={`Debug: ${debugPanelVisible ? "on" : "off"}`}
+          />
+        )}
+      </div>
+
+      {showDebugHud && debugPanelVisible && (
         <Hud
           mode="full"
           status={status}
           playerId={playerId}
+          controlledPlayer={controlledPlayer}
+          onControlledPlayerChange={setControlledPlayer}
           serverTick={serverTick}
           fps={fps}
           rttMs={rttMs}
           simulatedLagMs={simulatedLagMs}
           onSimulatedLagChange={setSimulatedLagMs}
           showSnapshotDebug={showSnapshotDebug}
+          onToggleSnapshotDebug={toggleSnapshotDebug}
           castleHp={castleHp}
           unitsCount={unitsCount}
           lastMessage={lastMessage}
@@ -71,23 +96,24 @@ function App() {
           mode="core-stats"
           status={status}
           playerId={playerId}
+          controlledPlayer={controlledPlayer}
+          onControlledPlayerChange={setControlledPlayer}
           serverTick={serverTick}
           fps={fps}
           rttMs={rttMs}
           simulatedLagMs={simulatedLagMs}
           onSimulatedLagChange={setSimulatedLagMs}
           showSnapshotDebug={showSnapshotDebug}
+          onToggleSnapshotDebug={toggleSnapshotDebug}
           castleHp={castleHp}
           unitsCount={unitsCount}
           lastMessage={lastMessage}
         />
       )}
 
-      <div style={{ display: "flex", gap: 12 }}>
-        <SpawnButton onSpawn={sendSpawn} disabled={status !== "connected"} />
-        <SpawnButton onSpawn={sendNewGame} disabled={status !== "connected"} label="New game" />
-      </div>
-      <LaneCanvas snapshots={snapshots} />
+      <section className="game-stage" aria-label="Game viewport">
+        <LaneCanvas snapshots={snapshots} />
+      </section>
     </main>
   );
 }

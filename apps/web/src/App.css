@@ -1,42 +1,273 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  padding: 18px;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 20% 0%, #1f2a44 0%, #0f1524 60%, #090d17 100%);
+  color: #e2e8f0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.app-title {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  font-size: 20px;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  color: #f1f5f9;
+  opacity: 0.9;
+}
+
+.game-stage {
+  height: calc(100vh - 36px);
+  display: grid;
+  place-items: center;
+}
+
+.game-stage > div {
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.action-dock {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+.action-btn {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action-btn--alt {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.action-btn--debug-on {
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.action-btn--debug-off {
+  border-color: rgba(148, 163, 184, 0.35);
+  opacity: 0.75;
+}
+
+.hud-card {
+  position: absolute;
+  z-index: 20;
+  background: rgba(8, 12, 22, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.hud-card--debug {
+  right: 18px;
+  top: 68px;
+  width: min(320px, calc(100vw - 36px));
+  padding: 10px;
+}
+
+.hud-card--core {
+  left: 18px;
+  top: 52px;
+  width: 200px;
+  padding: 10px;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.hud-row strong {
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.hud-inline-toggle {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.hud-inline-toggle--on {
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.hud-inline-toggle--off {
+  border-color: rgba(148, 163, 184, 0.35);
+  opacity: 0.8;
+}
+
+.hud-row--header {
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.hud-drag-handle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.hud-drag-handle:active {
+  cursor: grabbing;
+}
+
+.hud-badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  text-transform: none;
+}
+
+.hud-badge--ok {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+.hud-badge--warn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+}
+
+.hud-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hud-metric {
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-metric span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.hud-metric strong {
+  font-size: 13px;
+}
+
+.hud-lag {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.hud-lag select {
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  padding: 4px 6px;
+}
+
+.hud-player-select {
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hud-submenu {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.hud-submenu summary {
+  cursor: pointer;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.hud-last-message {
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.65);
+  color: #cbd5e1;
+  max-height: 90px;
+  overflow: auto;
+  word-break: break-word;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 12px;
   }
-  to {
-    transform: rotate(360deg);
+
+  .app-title {
+    position: static;
+    margin-bottom: 8px;
+    font-size: 18px;
   }
-}
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+  .action-dock {
+    top: 10px;
+    right: 12px;
   }
-}
 
-.card {
-  padding: 2em;
-}
+  .game-stage {
+    height: calc(100vh - 24px);
+  }
 
-.read-the-docs {
-  color: #888;
+  .hud-card--core {
+    top: 64px;
+    width: min(180px, calc(100vw - 24px));
+  }
+
+  .hud-card--debug {
+    right: 12px;
+    top: 58px;
+    width: min(280px, calc(100vw - 24px));
+  }
 }

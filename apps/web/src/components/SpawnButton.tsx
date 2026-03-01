@@ -2,11 +2,17 @@ type SpawnButtonProps = {
   onSpawn: () => void;
   disabled?: boolean;
   label?: string;
+  className?: string;
 };
 
-export function SpawnButton({ onSpawn, disabled = false, label = "Spawn unit" }: SpawnButtonProps) {
+export function SpawnButton({
+  onSpawn,
+  disabled = false,
+  label = "Spawn unit",
+  className,
+}: SpawnButtonProps) {
   return (
-    <button onClick={onSpawn} disabled={disabled} style={{ marginTop: 12, padding: "8px 12px" }}>
+    <button onClick={onSpawn} disabled={disabled} className={className}>
       {label}
     </button>
   );

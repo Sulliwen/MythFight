@@ -28,7 +28,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
   const simulatedLagRef = useRef<number>(0);
   const pendingSnapshotTimersRef = useRef<number[]>([]);
-  const [showSnapshotDebug] = useState<boolean>(() => resolveSnapshotDebugEnabled());
+  const [showSnapshotDebug, setShowSnapshotDebug] = useState<boolean>(() =>
+    resolveSnapshotDebugEnabled()
+  );
+  const showSnapshotDebugRef = useRef<boolean>(showSnapshotDebug);
 
   const [status, setStatus] = useState<SocketStatus>("connecting");
   const [playerId, setPlayerId] = useState<string>("(none)");
@@ -52,6 +55,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
       return next;
     });
   };
+
+  useEffect(() => {
+    showSnapshotDebugRef.current = showSnapshotDebug;
+  }, [showSnapshotDebug]);
 
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
@@ -85,7 +92,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(String(event.data)) as ServerMsg;
-        if (data.type !== "snapshot" || showSnapshotDebug) {
+        if (data.type !== "snapshot" || showSnapshotDebugRef.current) {
           setLastMessage(JSON.stringify(data));
         }
 
@@ -141,7 +148,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
       pendingSnapshotTimersRef.current = [];
       ws.close();
     };
-  }, [playerIdInput, showSnapshotDebug]);
+  }, [playerIdInput]);
 
   function updateSimulatedLagMs(value: number) {
     const sanitized = Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -184,6 +191,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "new_game" }));
   }
 
+  function toggleSnapshotDebug() {
+    setShowSnapshotDebug((prev) => !prev);
+  }
+
   return {
     status,
     playerId,
@@ -197,6 +208,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     simulatedLagMs,
     setSimulatedLagMs: updateSimulatedLagMs,
     showSnapshotDebug,
+    toggleSnapshotDebug,
     sendSpawn,
     sendNewGame,
   };
