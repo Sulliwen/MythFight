@@ -8,29 +8,9 @@ import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
 import type { PlayerId } from "./types";
 
-function parseBooleanLike(value: string | null): boolean | null {
-  if (value === null) return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "1" || normalized === "true" || normalized === "on") return true;
-  if (normalized === "0" || normalized === "false" || normalized === "off") return false;
-  return null;
-}
-
-function resolveDebugHudEnabled(): boolean {
-  const envValue = parseBooleanLike(import.meta.env.VITE_SHOW_DEBUG_HUD ?? null);
-  return envValue ?? import.meta.env.DEV;
-}
-
-function resolveCoreStatsEnabled(): boolean {
-  const envValue = parseBooleanLike(import.meta.env.VITE_SHOW_CORE_STATS ?? null);
-  return envValue ?? import.meta.env.DEV;
-}
-
 function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
-  const showDebugHud = resolveDebugHudEnabled();
-  const showCoreStats = resolveCoreStatsEnabled();
   const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
   const [debugPanelVisible, setDebugPanelVisible] = useState(true);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
@@ -93,13 +73,11 @@ function App() {
               label="Installer"
             />
           )}
-          {showDebugHud && (
-            <SpawnButton
-              className={`action-btn ${debugPanelVisible ? "action-btn--debug-on" : "action-btn--debug-off"}`}
-              onSpawn={() => setDebugPanelVisible((prev) => !prev)}
-              label={`Debug: ${debugPanelVisible ? "on" : "off"}`}
-            />
-          )}
+          <SpawnButton
+            className={`action-btn ${debugPanelVisible ? "action-btn--debug-on" : "action-btn--debug-off"}`}
+            onSpawn={() => setDebugPanelVisible((prev) => !prev)}
+            label={`Debug: ${debugPanelVisible ? "on" : "off"}`}
+          />
         </div>
       </header>
 
@@ -142,29 +120,9 @@ function App() {
         )}
       </div>
 
-      {showDebugHud && debugPanelVisible && (
+      {debugPanelVisible && (
         <Hud
           mode="full"
-          status={status}
-          playerId={playerId}
-          controlledPlayer={controlledPlayer}
-          onControlledPlayerChange={setControlledPlayer}
-          serverTick={serverTick}
-          fps={fps}
-          rttMs={rttMs}
-          simulatedLagMs={simulatedLagMs}
-          onSimulatedLagChange={setSimulatedLagMs}
-          showSnapshotDebug={showSnapshotDebug}
-          onToggleSnapshotDebug={toggleSnapshotDebug}
-          castleHp={castleHp}
-          unitsCount={unitsCount}
-          lastMessage={lastMessage}
-        />
-      )}
-
-      {!showDebugHud && showCoreStats && (
-        <Hud
-          mode="core-stats"
           status={status}
           playerId={playerId}
           controlledPlayer={controlledPlayer}

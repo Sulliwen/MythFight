@@ -5,32 +5,11 @@ type SocketStatus = "connecting" | "connected" | "error" | "closed";
 const DEFAULT_WS_URL = "ws://localhost:8082";
 const WS_URL = import.meta.env.VITE_WS_URL ?? DEFAULT_WS_URL;
 
-function parseBooleanLike(value: string | null): boolean | null {
-  if (value === null) return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "1" || normalized === "true" || normalized === "on") return true;
-  if (normalized === "0" || normalized === "false" || normalized === "off") return false;
-  return null;
-}
-
-function resolveSnapshotDebugEnabled(): boolean {
-  const envValue = parseBooleanLike(import.meta.env.VITE_SHOW_SNAPSHOT_DEBUG ?? null);
-  const defaultValue = envValue ?? import.meta.env.DEV;
-
-  const queryValue = parseBooleanLike(
-    new URLSearchParams(window.location.search).get("snapshotDebug")
-  );
-
-  return queryValue ?? defaultValue;
-}
-
 export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
   const simulatedLagRef = useRef<number>(0);
   const pendingSnapshotTimersRef = useRef<number[]>([]);
-  const [showSnapshotDebug, setShowSnapshotDebug] = useState<boolean>(() =>
-    resolveSnapshotDebugEnabled()
-  );
+  const [showSnapshotDebug, setShowSnapshotDebug] = useState<boolean>(false);
   const showSnapshotDebugRef = useRef<boolean>(showSnapshotDebug);
 
   const [status, setStatus] = useState<SocketStatus>("connecting");

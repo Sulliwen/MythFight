@@ -16,9 +16,8 @@ Copie `.env.example` vers `.env.local`.
 - `VITE_WS_URL`
   - Dev: `ws://localhost:8082`
   - Production PWA: `wss://<game-server-public>`
-- `VITE_SHOW_SNAPSHOT_DEBUG`
-- `VITE_SHOW_DEBUG_HUD`
-- `VITE_SHOW_CORE_STATS`
+
+Les options debug (affichage panel + logs snapshot) sont controlees directement dans l'UI.
 
 ## PWA (mobile)
 
