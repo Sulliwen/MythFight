@@ -12,6 +12,7 @@ export type CustomPrefabDefinition = {
   name: string;
   footprint: CustomPrefabPoint[];
   height: number;
+  topScale?: number;
   zLayer: number;
   style: {
     topColor: number;
@@ -24,6 +25,7 @@ export type CustomPrefabDraft = {
   name: string;
   footprint: CustomPrefabPoint[];
   height: number;
+  topScale?: number;
   zLayer: number;
   topColor: number;
   sideColor: number;
@@ -32,6 +34,8 @@ export type CustomPrefabDraft = {
 
 const MIN_HEIGHT = 0.03;
 const MAX_HEIGHT = 0.8;
+const MIN_TOP_SCALE = 0.2;
+const MAX_TOP_SCALE = 1.2;
 const MIN_Z_LAYER = 1;
 const MAX_Z_LAYER = 60;
 
@@ -96,6 +100,7 @@ export function createCustomPrefabDefinition(draft: CustomPrefabDraft, usedIds: 
     name,
     footprint: normalizeFootprint(draft.footprint),
     height: clamp(draft.height, MIN_HEIGHT, MAX_HEIGHT),
+    topScale: clamp(draft.topScale ?? 1, MIN_TOP_SCALE, MAX_TOP_SCALE),
     zLayer: Math.round(clamp(draft.zLayer, MIN_Z_LAYER, MAX_Z_LAYER)),
     style: {
       topColor: Math.trunc(draft.topColor),
@@ -114,6 +119,7 @@ export function isCustomPrefabDefinition(value: unknown): value is CustomPrefabD
   if (typeof value.id !== "string" || typeof value.name !== "string") return false;
   if (!Array.isArray(value.footprint) || value.footprint.length < 3 || !value.footprint.every(isPrefabPoint)) return false;
   if (!isNumber(value.height) || !isNumber(value.zLayer)) return false;
+  if (value.topScale !== undefined && !isNumber(value.topScale)) return false;
   if (!isObject(value.style)) return false;
   if (!isNumber(value.style.topColor) || !isNumber(value.style.sideColor) || !isNumber(value.style.alpha)) return false;
   return true;

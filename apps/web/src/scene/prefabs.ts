@@ -125,17 +125,33 @@ function getRockPolygon(layout: IsoLayout, element: SceneElement): IsoPoint[] {
 function getCustomPrefabGeometry(
   layout: IsoLayout,
   element: SceneElement,
-  footprint: CustomPrefabPoint[]
+  footprint: CustomPrefabPoint[],
+  topScale: number
 ): { top: IsoPoint[]; sideFaces: CustomFace[] } {
   const size = scaledSize(element);
   const height = Math.max(6, layout.scaleY * Math.max(0.02, size.height));
   const { u, v, rotation } = element.transform;
+  let centroidU = 0;
+  let centroidV = 0;
+  for (const point of footprint) {
+    centroidU += point.u;
+    centroidV += point.v;
+  }
+  const denominator = Math.max(1, footprint.length);
+  centroidU /= denominator;
+  centroidV /= denominator;
 
   const bottomPoints = footprint.map((point) => {
     const uv = localToUv(u, v, point.u * size.width, point.v * size.depth, rotation);
     return projectIso(layout, uv.u, uv.v);
   });
-  const topPoints = bottomPoints.map((point) => offsetPoint(point, 0, -height));
+  const topPoints = footprint.map((point) => {
+    const scaledU = centroidU + (point.u - centroidU) * topScale;
+    const scaledV = centroidV + (point.v - centroidV) * topScale;
+    const uv = localToUv(u, v, scaledU * size.width, scaledV * size.depth, rotation);
+    const projected = projectIso(layout, uv.u, uv.v);
+    return offsetPoint(projected, 0, -height);
+  });
 
   const sideFaces: CustomFace[] = [];
   for (let index = 0; index < bottomPoints.length; index += 1) {
@@ -280,7 +296,9 @@ export function drawSceneElement(graphics: Graphics, layout: IsoLayout, element:
 
   if (element.kind === "custom_prefab") {
     const footprint = parseFootprint(element.meta?.customFootprint);
-    const geometry = getCustomPrefabGeometry(layout, element, footprint);
+    const topScaleMeta = element.meta?.customTopScale;
+    const topScale = typeof topScaleMeta === "number" ? Math.max(0.2, Math.min(1.2, topScaleMeta)) : 1;
+    const geometry = getCustomPrefabGeometry(layout, element, footprint, topScale);
     const sideBaseColor = element.style?.fillColor ?? 0x64748b;
     const topColor = element.style?.topColor ?? shadeColor(sideBaseColor, 1.2);
     const alpha = element.style?.alpha ?? 0.95;
@@ -339,7 +357,9 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
 
   if (element.kind === "custom_prefab") {
     const footprint = parseFootprint(element.meta?.customFootprint);
-    const geometry = getCustomPrefabGeometry(layout, element, footprint);
+    const topScaleMeta = element.meta?.customTopScale;
+    const topScale = typeof topScaleMeta === "number" ? Math.max(0.2, Math.min(1.2, topScaleMeta)) : 1;
+    const geometry = getCustomPrefabGeometry(layout, element, footprint, topScale);
     if (geometry.top.length < 3) return null;
     return {
       id: element.id,

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
-import { Prefab3DEditor } from "./components/Prefab3DEditor";
+import { PrefabIsoEditor } from "./components/PrefabIsoEditor";
 import { LaneCanvas, type LaneCanvasHandle } from "./components/LaneCanvas";
-import { PrefabPainter } from "./components/PrefabPainter";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
@@ -312,6 +311,7 @@ function App() {
         name: parsed.prefab.name,
         footprint: parsed.prefab.footprint,
         height: parsed.prefab.height,
+        topScale: parsed.prefab.topScale ?? 1,
         zLayer: parsed.prefab.zLayer,
         topColor: parsed.prefab.style.topColor,
         sideColor: parsed.prefab.style.sideColor,
@@ -488,12 +488,8 @@ function App() {
           <div className="editor-panel__section">
             <h3>Prefab custom</h3>
             <div className="editor-panel__subsection">
-              <h4>Builder 3D</h4>
-              <Prefab3DEditor onCreatePrefab={createCustomPrefab} />
-            </div>
-            <div className="editor-panel__subsection">
-              <h4>Painter 2D</h4>
-              <PrefabPainter onCreatePrefab={createCustomPrefab} />
+              <h4>Editeur 2.5D isometrique</h4>
+              <PrefabIsoEditor onCreatePrefab={createCustomPrefab} />
             </div>
             <div className="editor-panel__actions editor-panel__actions--row">
               <label className="editor-panel__field">

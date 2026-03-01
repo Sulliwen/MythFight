@@ -29,6 +29,15 @@ export function buildSelectionPayload(element: SceneElement): LaneEditorSelectio
   const styleEntries = Object.entries(element.style ?? {})
     .map(([key, value]) => `${key}: ${typeof value === "number" ? formatTsNumber(value) : String(value)}`)
     .join(", ");
+  const size: Record<string, number> = {
+    width: element.size.width,
+    depth: element.size.depth,
+    height: element.size.height,
+    zLayer: element.zLayer,
+  };
+  if (element.kind === "custom_prefab" && typeof element.meta?.customTopScale === "number") {
+    size.topScale = element.meta.customTopScale;
+  }
 
   return {
     id: element.id,
@@ -48,12 +57,7 @@ export function buildSelectionPayload(element: SceneElement): LaneEditorSelectio
       rotationDeg: (element.transform.rotation * 180) / Math.PI,
       scale: element.transform.scale,
     },
-    size: {
-      width: element.size.width,
-      depth: element.size.depth,
-      height: element.size.height,
-      zLayer: element.zLayer,
-    },
+    size,
     suggestedTs: [
       "{",
       `  id: "${element.id}",`,

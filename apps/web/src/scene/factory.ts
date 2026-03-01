@@ -151,6 +151,7 @@ export function createCustomPrefabSceneElement(
     meta: {
       customPrefabId: prefab.id,
       customFootprint: serializeFootprint(prefab.footprint),
+      customTopScale: prefab.topScale ?? 1,
     },
   };
 }

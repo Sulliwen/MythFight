@@ -296,7 +296,7 @@
   min-width: 84px;
 }
 
-.prefab-painter {
+.prefab-iso-editor {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -306,64 +306,47 @@
   background: rgba(2, 6, 23, 0.58);
 }
 
-.prefab-3d-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.58);
-}
-
-.prefab-3d-editor__viewport {
-  width: 100%;
-  min-height: 230px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  overflow: hidden;
-  touch-action: none;
-  cursor: grab;
-}
-
-.prefab-3d-editor__viewport:active {
-  cursor: grabbing;
-}
-
-.prefab-3d-editor__canvas {
-  display: block;
-  width: 100%;
-  height: 230px;
-}
-
-.prefab-3d-editor__controls {
+.prefab-iso-editor__canvases {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.prefab-3d-editor__hint {
-  color: #93c5fd;
-  font-size: 11px;
+.prefab-iso-editor__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.prefab-painter__canvas {
-  width: 200px;
-  height: 200px;
+.prefab-iso-editor__panel strong {
+  font-size: 11px;
+  color: #bfdbfe;
+}
+
+.prefab-iso-editor__panel span {
+  max-width: 220px;
+  font-size: 10px;
+  color: #93c5fd;
+}
+
+.prefab-iso-editor__canvas {
+  width: 220px;
+  height: 220px;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   cursor: crosshair;
+  touch-action: none;
 }
 
-.prefab-painter__hint {
-  color: #93c5fd;
-  font-size: 11px;
-}
-
-.prefab-painter__controls {
+.prefab-iso-editor__controls {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.prefab-iso-editor__hint {
+  font-size: 11px;
+  color: #93c5fd;
 }
 
 .editor-panel__section h3 {
