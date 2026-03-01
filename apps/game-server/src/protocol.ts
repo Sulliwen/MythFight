@@ -43,3 +43,7 @@ export function getJoinPayload(message: IncomingMessage): JoinPayloadResult {
 export function isSpawnMessage(message: IncomingMessage): boolean {
   return message.type === "spawn";
 }
+
+export function isNewGameMessage(message: IncomingMessage): boolean {
+  return message.type === "new_game";
+}

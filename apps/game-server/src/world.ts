@@ -19,6 +19,14 @@ export function createWorld(): WorldState {
   };
 }
 
+export function resetWorld(world: WorldState): void {
+  world.tick = 0;
+  world.nextUnitId = 1;
+  world.castle.player1 = 100;
+  world.castle.player2 = 100;
+  world.units = [];
+}
+
 function createUnit(owner: PlayerId, id: number): Unit {
   if (owner === "player1") {
     return {

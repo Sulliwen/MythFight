@@ -42,6 +42,7 @@ function App() {
     lastMessage,
     snapshots,
     sendSpawn,
+    sendNewGame,
   } = useGameSocket(selectedPlayer);
 
   return (
@@ -82,7 +83,10 @@ function App() {
         />
       )}
 
-      <SpawnButton onSpawn={sendSpawn} disabled={status !== "connected"} />
+      <div style={{ display: "flex", gap: 12 }}>
+        <SpawnButton onSpawn={sendSpawn} disabled={status !== "connected"} />
+        <SpawnButton onSpawn={sendNewGame} disabled={status !== "connected"} label="New game" />
+      </div>
       <LaneCanvas snapshots={snapshots} />
     </main>
   );

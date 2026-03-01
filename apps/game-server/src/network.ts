@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { getJoinPayload, isSpawnMessage, parseIncoming } from "./protocol.js";
-import { buildSnapshot, spawnUnit } from "./world.js";
+import { getJoinPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
+import { buildSnapshot, resetWorld, spawnUnit } from "./world.js";
 import type { PlayerId, WorldState } from "./types.js";
 
 type ClientsMap = Map<WebSocket, PlayerId>;
@@ -51,6 +51,18 @@ export function handleConnection(
 
       const unit = spawnUnit(world, owner);
       console.log(`spawn: owner=${owner}, unitId=${unit.id}, x=${unit.x}`);
+      return;
+    }
+
+    if (isNewGameMessage(message)) {
+      const owner = clients.get(socket);
+      if (!owner) {
+        socket.send(JSON.stringify({ type: "error", reason: "must_join_before_new_game" }));
+        return;
+      }
+
+      resetWorld(world);
+      console.log(`new game requested by ${owner}`);
       return;
     }
 

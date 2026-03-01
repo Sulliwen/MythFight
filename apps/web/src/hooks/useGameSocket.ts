@@ -178,6 +178,12 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "spawn" }));
   }
 
+  function sendNewGame() {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "new_game" }));
+  }
+
   return {
     status,
     playerId,
@@ -192,5 +198,6 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     setSimulatedLagMs: updateSimulatedLagMs,
     showSnapshotDebug,
     sendSpawn,
+    sendNewGame,
   };
 }
