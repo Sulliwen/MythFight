@@ -59,7 +59,6 @@ type BoardState = {
   centerV: number;
   width: number;
   halfWidth: number;
-  stripRatio: number;
   rotation: number;
 };
 
@@ -203,18 +202,6 @@ function uvToLocal(centerU: number, centerV: number, u: number, v: number, rotat
   };
 }
 
-function projectLocalIso(
-  layout: IsoLayout,
-  centerU: number,
-  centerV: number,
-  du: number,
-  dv: number,
-  rotation: number
-): IsoPoint {
-  const point = localToUv(centerU, centerV, du, dv, rotation);
-  return projectIso(layout, point.u, point.v);
-}
-
 function drawPolygonFill(graphics: Graphics, points: IsoPoint[], color: number, alpha = 1): void {
   if (points.length === 0) return;
   graphics.moveTo(points[0].x, points[0].y);
@@ -280,52 +267,6 @@ function getBoardCorners(layout: IsoLayout, board: BoardState): IsoPoint[] {
 function drawLaneBoard(graphics: Graphics, layout: IsoLayout, board: BoardState): void {
   const corners = getBoardCorners(layout, board);
   drawPolygonFill(graphics, corners, 0x1e293b, 0.95);
-
-  const stripHalfWidth = board.halfWidth * board.stripRatio;
-  const segments = 8;
-  for (let i = 0; i < segments; i += 1) {
-    const t0 = i / segments;
-    const t1 = (i + 1) / segments;
-    const u0 = board.centerU - board.width * 0.5 + board.width * t0;
-    const u1 = board.centerU - board.width * 0.5 + board.width * t1;
-    const color = i % 2 === 0 ? 0x2d3a50 : 0x263246;
-
-    drawPolygonFill(
-      graphics,
-      [
-        projectLocalIso(layout, board.centerU, board.centerV, u0 - board.centerU, -stripHalfWidth, board.rotation),
-        projectLocalIso(layout, board.centerU, board.centerV, u1 - board.centerU, -stripHalfWidth, board.rotation),
-        projectLocalIso(layout, board.centerU, board.centerV, u1 - board.centerU, +stripHalfWidth, board.rotation),
-        projectLocalIso(layout, board.centerU, board.centerV, u0 - board.centerU, +stripHalfWidth, board.rotation),
-      ],
-      color,
-      0.9
-    );
-  }
-
-  drawPolygonFill(
-    graphics,
-    [
-      projectLocalIso(layout, board.centerU, board.centerV, -board.width * 0.5, -board.halfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, +board.width * 0.5, -board.halfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, +board.width * 0.5, -stripHalfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, -board.width * 0.5, -stripHalfWidth, board.rotation),
-    ],
-    0x152032,
-    0.8
-  );
-
-  drawPolygonFill(
-    graphics,
-    [
-      projectLocalIso(layout, board.centerU, board.centerV, -board.width * 0.5, +stripHalfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, +board.width * 0.5, +stripHalfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, +board.width * 0.5, +board.halfWidth, board.rotation),
-      projectLocalIso(layout, board.centerU, board.centerV, -board.width * 0.5, +board.halfWidth, board.rotation),
-    ],
-    0x3b4a62,
-    0.5
-  );
 }
 
 function getCastleGeometry(layout: IsoLayout, castle: CastleState): CastleGeometry {
@@ -431,7 +372,6 @@ function createInitialEditorState(): EditorState {
       centerV: 0,
       width: 1,
       halfWidth: 0.18,
-      stripRatio: 0.72,
       rotation: 0,
     },
     castles: {
@@ -538,7 +478,6 @@ function buildSelectionPayload(id: EditableId, state: EditorState): LaneEditorSe
       size: {
         width: state.board.width,
         halfWidth: state.board.halfWidth,
-        stripRatio: state.board.stripRatio,
       },
       suggestedTs: [
         "board: {",
@@ -546,7 +485,6 @@ function buildSelectionPayload(id: EditableId, state: EditorState): LaneEditorSe
         `  centerV: ${formatTsNumber(state.board.centerV)},`,
         `  width: ${formatTsNumber(state.board.width)},`,
         `  halfWidth: ${formatTsNumber(state.board.halfWidth)},`,
-        `  stripRatio: ${formatTsNumber(state.board.stripRatio)},`,
         `  rotation: ${formatTsNumber(state.board.rotation)},`,
         "}",
       ].join("\n"),
