@@ -14,6 +14,10 @@ const ROCK_MIN_WIDTH = 0.04;
 const ROCK_MAX_WIDTH = 0.35;
 const ROCK_MIN_DEPTH = 0.04;
 const ROCK_MAX_DEPTH = 0.35;
+const CUSTOM_MIN_WIDTH = 0.05;
+const CUSTOM_MAX_WIDTH = 0.7;
+const CUSTOM_MIN_DEPTH = 0.05;
+const CUSTOM_MAX_DEPTH = 0.7;
 
 function formatTsNumber(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
@@ -33,7 +37,10 @@ export function buildSelectionPayload(element: SceneElement): LaneEditorSelectio
     kind: element.kind,
     htmlTarget: ".lane-canvas-host > canvas (Pixi)",
     cssTarget: ".lane-canvas-host",
-    tsTarget: `apps/web/src/scene/defaultScene.ts#element:${element.id}`,
+    tsTarget:
+      element.kind === "custom_prefab"
+        ? `custom-prefab:${String(element.meta?.customPrefabId ?? "unknown")}`
+        : `apps/web/src/scene/defaultScene.ts#element:${element.id}`,
     position: {
       u: element.transform.u,
       v: element.transform.v,
@@ -111,6 +118,17 @@ export function applyResize(element: SceneElement, pointerU: number, pointerV: n
         ...element.size,
         width: clamp(Math.abs(local.u) * 2, ROCK_MIN_WIDTH, ROCK_MAX_WIDTH),
         depth: clamp(Math.abs(local.v) * 2, ROCK_MIN_DEPTH, ROCK_MAX_DEPTH),
+      },
+    };
+  }
+
+  if (element.kind === "custom_prefab") {
+    return {
+      ...element,
+      size: {
+        ...element.size,
+        width: clamp(Math.abs(local.u) * 2, CUSTOM_MIN_WIDTH, CUSTOM_MAX_WIDTH),
+        depth: clamp(Math.abs(local.v) * 2, CUSTOM_MIN_DEPTH, CUSTOM_MAX_DEPTH),
       },
     };
   }

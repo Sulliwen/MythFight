@@ -208,6 +208,18 @@
   margin-top: 10px;
 }
 
+.editor-panel__subsection {
+  margin-bottom: 10px;
+}
+
+.editor-panel__subsection h4 {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  color: #7dd3fc;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .editor-panel__actions {
   display: flex;
   gap: 6px;
@@ -229,6 +241,11 @@
   font-weight: 600;
   padding: 6px 9px;
   cursor: pointer;
+}
+
+.editor-panel__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .editor-panel__btn--ghost {
@@ -261,6 +278,92 @@
   color: #e2e8f0;
   font-size: 12px;
   padding: 4px 8px;
+}
+
+.editor-panel__input {
+  min-height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.editor-panel__input--color {
+  padding: 2px;
+  min-width: 84px;
+}
+
+.prefab-painter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.58);
+}
+
+.prefab-3d-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.58);
+}
+
+.prefab-3d-editor__viewport {
+  width: 100%;
+  min-height: 230px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+
+.prefab-3d-editor__viewport:active {
+  cursor: grabbing;
+}
+
+.prefab-3d-editor__canvas {
+  display: block;
+  width: 100%;
+  height: 230px;
+}
+
+.prefab-3d-editor__controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prefab-3d-editor__hint {
+  color: #93c5fd;
+  font-size: 11px;
+}
+
+.prefab-painter__canvas {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  cursor: crosshair;
+}
+
+.prefab-painter__hint {
+  color: #93c5fd;
+  font-size: 11px;
+}
+
+.prefab-painter__controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .editor-panel__section h3 {

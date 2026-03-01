@@ -2,11 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
+import { Prefab3DEditor } from "./components/Prefab3DEditor";
 import { LaneCanvas, type LaneCanvasHandle } from "./components/LaneCanvas";
+import { PrefabPainter } from "./components/PrefabPainter";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
+import {
+  CUSTOM_PREFABS_STORAGE_KEY,
+  createCustomPrefabDefinition,
+  parseCustomPrefabJson,
+  parseCustomPrefabList,
+  serializeCustomPrefab,
+  serializeCustomPrefabList,
+  type CustomPrefabDefinition,
+  type CustomPrefabDraft,
+} from "./scene/customPrefabs";
 import {
   ADDABLE_SCENE_ELEMENT_KINDS,
   getKindLabel,
@@ -20,6 +32,10 @@ function formatEditorValue(value: number): string {
   return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(3);
 }
 
+function loadStoredCustomPrefabs(): CustomPrefabDefinition[] {
+  return parseCustomPrefabList(window.localStorage.getItem(CUSTOM_PREFABS_STORAGE_KEY));
+}
+
 function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
@@ -29,6 +45,9 @@ function App() {
   const [editorMode, setEditorMode] = useState(false);
   const [editorSelection, setEditorSelection] = useState<LaneEditorSelection | null>(null);
   const [newElementKind, setNewElementKind] = useState<AddableSceneElementKind>(ADDABLE_SCENE_ELEMENT_KINDS[0]);
+  const [customPrefabs, setCustomPrefabs] = useState<CustomPrefabDefinition[]>(() => loadStoredCustomPrefabs());
+  const [selectedCustomPrefabId, setSelectedCustomPrefabId] = useState(() => loadStoredCustomPrefabs()[0]?.id ?? "");
+  const [customPrefabJsonDraft, setCustomPrefabJsonDraft] = useState("");
   const [sceneJsonDraft, setSceneJsonDraft] = useState("");
   const [sceneIoStatus, setSceneIoStatus] = useState<string>("");
   const [editorPanelOffset, setEditorPanelOffset] = useState({ x: 0, y: 0 });
@@ -66,6 +85,10 @@ function App() {
     sendSpawn,
     sendNewGame,
   } = useGameSocket(controlledPlayer);
+
+  useEffect(() => {
+    window.localStorage.setItem(CUSTOM_PREFABS_STORAGE_KEY, serializeCustomPrefabList(customPrefabs));
+  }, [customPrefabs]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -232,6 +255,75 @@ function App() {
     setSceneIoStatus(`Suppression refusee: ${result.error}`);
   }
 
+  function createCustomPrefab(draft: CustomPrefabDraft) {
+    const usedIds = new Set(customPrefabs.map((prefab) => prefab.id));
+    const prefab = createCustomPrefabDefinition(draft, usedIds);
+    setCustomPrefabs((prev) => [...prev, prefab]);
+    setSelectedCustomPrefabId(prefab.id);
+    setSceneIoStatus(`Prefab cree: ${prefab.name} (${prefab.id}).`);
+  }
+
+  function addSelectedCustomPrefabToScene() {
+    const prefab = customPrefabs.find((item) => item.id === selectedCustomPrefabId);
+    if (!prefab) {
+      setSceneIoStatus("Aucun prefab custom selectionne.");
+      return;
+    }
+    const api = laneCanvasRef.current;
+    if (!api) return;
+    const result = api.addCustomPrefabElement(prefab);
+    if (result.ok) {
+      setSceneIoStatus(`Prefab ajoute a la scene: ${result.id}.`);
+      return;
+    }
+    setSceneIoStatus(`Ajout prefab refuse: ${result.error}`);
+  }
+
+  function removeSelectedCustomPrefab() {
+    if (!selectedCustomPrefabId) {
+      setSceneIoStatus("Aucun prefab custom selectionne.");
+      return;
+    }
+    setCustomPrefabs((prev) => prev.filter((prefab) => prefab.id !== selectedCustomPrefabId));
+    const remaining = customPrefabs.filter((prefab) => prefab.id !== selectedCustomPrefabId);
+    setSelectedCustomPrefabId(remaining[0]?.id ?? "");
+    setSceneIoStatus(`Prefab supprime de la bibliotheque: ${selectedCustomPrefabId}.`);
+  }
+
+  function exportSelectedCustomPrefab() {
+    const prefab = customPrefabs.find((item) => item.id === selectedCustomPrefabId);
+    if (!prefab) {
+      setSceneIoStatus("Aucun prefab custom selectionne.");
+      return;
+    }
+    setCustomPrefabJsonDraft(serializeCustomPrefab(prefab));
+    setSceneIoStatus(`Prefab exporte: ${prefab.id}.`);
+  }
+
+  function importCustomPrefabFromJson() {
+    const parsed = parseCustomPrefabJson(customPrefabJsonDraft);
+    if (!parsed.ok) {
+      setSceneIoStatus(`Import prefab refuse: ${parsed.error}`);
+      return;
+    }
+    const usedIds = new Set(customPrefabs.map((prefab) => prefab.id));
+    const prefab = createCustomPrefabDefinition(
+      {
+        name: parsed.prefab.name,
+        footprint: parsed.prefab.footprint,
+        height: parsed.prefab.height,
+        zLayer: parsed.prefab.zLayer,
+        topColor: parsed.prefab.style.topColor,
+        sideColor: parsed.prefab.style.sideColor,
+        alpha: parsed.prefab.style.alpha,
+      },
+      usedIds
+    );
+    setCustomPrefabs((prev) => [...prev, prefab]);
+    setSelectedCustomPrefabId(prefab.id);
+    setSceneIoStatus(`Prefab importe: ${prefab.id}.`);
+  }
+
   useEffect(() => {
     if (!editorMode) return;
 
@@ -391,6 +483,59 @@ function App() {
           >
             <strong>Mode edition</strong>
             <span>Drag = deplacer, carre = taille, rond = rotation, Alt+drag = camera, Alt+molette = haut/bas</span>
+          </div>
+
+          <div className="editor-panel__section">
+            <h3>Prefab custom</h3>
+            <div className="editor-panel__subsection">
+              <h4>Builder 3D</h4>
+              <Prefab3DEditor onCreatePrefab={createCustomPrefab} />
+            </div>
+            <div className="editor-panel__subsection">
+              <h4>Painter 2D</h4>
+              <PrefabPainter onCreatePrefab={createCustomPrefab} />
+            </div>
+            <div className="editor-panel__actions editor-panel__actions--row">
+              <label className="editor-panel__field">
+                <span>Bibliotheque</span>
+                <select
+                  className="editor-panel__select"
+                  value={selectedCustomPrefabId}
+                  onChange={(event) => setSelectedCustomPrefabId(event.target.value)}
+                >
+                  <option value="">Choisir un prefab</option>
+                  {customPrefabs.map((prefab) => (
+                    <option key={prefab.id} value={prefab.id}>
+                      {prefab.name} ({prefab.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="editor-panel__btn" onClick={addSelectedCustomPrefabToScene}>
+                Ajouter prefab
+              </button>
+              <button
+                type="button"
+                className="editor-panel__btn editor-panel__btn--danger"
+                onClick={removeSelectedCustomPrefab}
+              >
+                Supprimer prefab
+              </button>
+            </div>
+            <div className="editor-panel__actions">
+              <button type="button" className="editor-panel__btn editor-panel__btn--ghost" onClick={exportSelectedCustomPrefab}>
+                Export prefab JSON
+              </button>
+              <button type="button" className="editor-panel__btn editor-panel__btn--ghost" onClick={importCustomPrefabFromJson}>
+                Import prefab JSON
+              </button>
+            </div>
+            <textarea
+              className="editor-panel__textarea"
+              value={customPrefabJsonDraft}
+              onChange={(event) => setCustomPrefabJsonDraft(event.target.value)}
+              placeholder="JSON prefab custom (export/import)."
+            />
           </div>
 
           <div className="editor-panel__section">

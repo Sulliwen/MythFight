@@ -1,6 +1,7 @@
 import type { Graphics } from "pixi.js";
 import type { IsoLayout, IsoPoint } from "./iso";
 import { localToUv, offsetPoint, projectIso } from "./iso";
+import { parseFootprint, type CustomPrefabPoint } from "./customPrefabs";
 import type { SceneElement } from "./sceneTypes";
 
 export type ElementEditorShape = {
@@ -23,6 +24,12 @@ type CastleGeometry = {
 };
 
 type CastleWallFace = {
+  polygon: IsoPoint[];
+  avgY: number;
+  color: number;
+};
+
+type CustomFace = {
   polygon: IsoPoint[];
   avgY: number;
   color: number;
@@ -113,6 +120,38 @@ function getRockPolygon(layout: IsoLayout, element: SceneElement): IsoPoint[] {
   }
 
   return points;
+}
+
+function getCustomPrefabGeometry(
+  layout: IsoLayout,
+  element: SceneElement,
+  footprint: CustomPrefabPoint[]
+): { top: IsoPoint[]; sideFaces: CustomFace[] } {
+  const size = scaledSize(element);
+  const height = Math.max(6, layout.scaleY * Math.max(0.02, size.height));
+  const { u, v, rotation } = element.transform;
+
+  const bottomPoints = footprint.map((point) => {
+    const uv = localToUv(u, v, point.u * size.width, point.v * size.depth, rotation);
+    return projectIso(layout, uv.u, uv.v);
+  });
+  const topPoints = bottomPoints.map((point) => offsetPoint(point, 0, -height));
+
+  const sideFaces: CustomFace[] = [];
+  for (let index = 0; index < bottomPoints.length; index += 1) {
+    const next = (index + 1) % bottomPoints.length;
+    const polygon = [bottomPoints[index], bottomPoints[next], topPoints[next], topPoints[index]];
+    sideFaces.push({
+      polygon,
+      avgY: averageY(polygon),
+      color: 0,
+    });
+  }
+
+  return {
+    top: topPoints,
+    sideFaces,
+  };
 }
 
 function getRotateHandle(center: IsoPoint, polygon: IsoPoint[]): IsoPoint {
@@ -236,6 +275,28 @@ export function drawSceneElement(graphics: Graphics, layout: IsoLayout, element:
     graphics
       .ellipse(center.x, center.y + 6, 16, 6)
       .fill({ color: 0x020617, alpha: 0.26 });
+    return;
+  }
+
+  if (element.kind === "custom_prefab") {
+    const footprint = parseFootprint(element.meta?.customFootprint);
+    const geometry = getCustomPrefabGeometry(layout, element, footprint);
+    const sideBaseColor = element.style?.fillColor ?? 0x64748b;
+    const topColor = element.style?.topColor ?? shadeColor(sideBaseColor, 1.2);
+    const alpha = element.style?.alpha ?? 0.95;
+
+    const faces = geometry.sideFaces
+      .map((face, index) => ({
+        ...face,
+        color: shadeColor(sideBaseColor, index % 2 === 0 ? 0.85 : 0.7),
+      }))
+      .sort((left, right) => left.avgY - right.avgY);
+
+    for (const face of faces) {
+      drawPolygonFill(graphics, face.polygon, face.color, alpha);
+    }
+
+    drawPolygonFill(graphics, geometry.top, topColor, alpha);
   }
 }
 
@@ -273,6 +334,19 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
       center,
       resizeHandle: polygon[1],
       rotateHandle: getRotateHandle(center, polygon),
+    };
+  }
+
+  if (element.kind === "custom_prefab") {
+    const footprint = parseFootprint(element.meta?.customFootprint);
+    const geometry = getCustomPrefabGeometry(layout, element, footprint);
+    if (geometry.top.length < 3) return null;
+    return {
+      id: element.id,
+      polygon: geometry.top,
+      center,
+      resizeHandle: geometry.top[Math.floor(geometry.top.length / 2)],
+      rotateHandle: getRotateHandle(center, geometry.top),
     };
   }
 

@@ -3,7 +3,8 @@ import { Application, Container, Graphics } from "pixi.js";
 import type { LaneEditorSelection, PlayerId, SnapshotMsg, Unit } from "../types";
 import { applyMove, applyResize, applyRotation, buildSelectionPayload } from "../scene/editor";
 import { createDefaultScene } from "../scene/defaultScene";
-import { createSceneElement, type AddableSceneElementKind } from "../scene/factory";
+import type { CustomPrefabDefinition } from "../scene/customPrefabs";
+import { createCustomPrefabSceneElement, createSceneElement, type AddableSceneElementKind } from "../scene/factory";
 import {
   clamp,
   createIsoLayout,
@@ -33,6 +34,7 @@ export type LaneCanvasHandle = {
   exportSceneJson: () => string;
   importSceneJson: (json: string) => { ok: true } | { ok: false; error: string };
   addSceneElement: (kind: AddableSceneElementKind) => { ok: true; id: string } | { ok: false; error: string };
+  addCustomPrefabElement: (prefab: CustomPrefabDefinition) => { ok: true; id: string } | { ok: false; error: string };
   deleteSelectedElement: () => { ok: true; id: string } | { ok: false; error: string };
   resetScene: () => void;
 };
@@ -200,6 +202,22 @@ export const LaneCanvas = forwardRef<LaneCanvasHandle, LaneCanvasProps>(function
             }
           : undefined;
         const nextElement = createSceneElement(sceneRef.current, kind, anchor);
+        sceneRef.current = appendElement(sceneRef.current, nextElement);
+        selectedElementIdRef.current = nextElement.id;
+        emitSelection(nextElement.id);
+        return { ok: true, id: nextElement.id };
+      },
+      addCustomPrefabElement(prefab: CustomPrefabDefinition) {
+        const selectedElement = selectedElementIdRef.current
+          ? findElement(sceneRef.current, selectedElementIdRef.current)
+          : null;
+        const anchor = selectedElement
+          ? {
+              u: selectedElement.transform.u + 0.06,
+              v: selectedElement.transform.v + 0.03,
+            }
+          : undefined;
+        const nextElement = createCustomPrefabSceneElement(sceneRef.current, prefab, anchor);
         sceneRef.current = appendElement(sceneRef.current, nextElement);
         selectedElementIdRef.current = nextElement.id;
         emitSelection(nextElement.id);

@@ -1,4 +1,4 @@
-import type { SceneDefinition, SceneElement } from "./sceneTypes";
+import { SCENE_ELEMENT_KINDS, type SceneDefinition, type SceneElement } from "./sceneTypes";
 
 type ParseResult = { ok: true; scene: SceneDefinition } | { ok: false; error: string };
 
@@ -15,6 +15,7 @@ function isElement(value: unknown): value is SceneElement {
   if (typeof value.id !== "string" || typeof value.kind !== "string" || typeof value.label !== "string") {
     return false;
   }
+  if (!SCENE_ELEMENT_KINDS.includes(value.kind as (typeof SCENE_ELEMENT_KINDS)[number])) return false;
   if (!isObject(value.transform) || !isObject(value.size)) return false;
   if (!isNumber(value.transform.u) || !isNumber(value.transform.v)) return false;
   if (!isNumber(value.transform.rotation) || !isNumber(value.transform.scale)) return false;

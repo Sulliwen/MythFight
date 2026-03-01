@@ -1,5 +1,6 @@
 import { clamp } from "./iso";
 import { getLaneFloorElement } from "./sceneState";
+import { serializeFootprint, type CustomPrefabDefinition } from "./customPrefabs";
 import type { SceneDefinition, SceneElement, SceneElementKind } from "./sceneTypes";
 
 export const ADDABLE_SCENE_ELEMENT_KINDS = ["castle", "rock"] as const;
@@ -37,7 +38,7 @@ function defaultAnchor(scene: SceneDefinition): UvPoint {
   return { u: 0.5, v: 0 };
 }
 
-function resolvePlacement(scene: SceneDefinition, kind: AddableSceneElementKind, anchor?: UvPoint): UvPoint {
+function resolvePlacement(scene: SceneDefinition, kind: SceneElementKind, anchor?: UvPoint): UvPoint {
   const base = anchor ?? defaultAnchor(scene);
   const sameKindCount = scene.elements.filter((element) => element.kind === kind).length;
   const offset = PLACEMENT_OFFSETS[sameKindCount % PLACEMENT_OFFSETS.length];
@@ -115,6 +116,43 @@ function createRock(scene: SceneDefinition, anchor?: UvPoint): SceneElement {
 export function createSceneElement(scene: SceneDefinition, kind: AddableSceneElementKind, anchor?: UvPoint): SceneElement {
   if (kind === "castle") return createCastle(scene, anchor);
   return createRock(scene, anchor);
+}
+
+export function createCustomPrefabSceneElement(
+  scene: SceneDefinition,
+  prefab: CustomPrefabDefinition,
+  anchor?: UvPoint
+): SceneElement {
+  const placement = resolvePlacement(scene, "custom_prefab", anchor);
+  const sameKindCount = scene.elements.filter((element) => element.kind === "custom_prefab").length;
+
+  return {
+    id: buildUniqueElementId(scene, "custom_prefab"),
+    kind: "custom_prefab",
+    label: `${prefab.name} ${sameKindCount + 1}`,
+    transform: {
+      u: placement.u,
+      v: placement.v,
+      rotation: 0,
+      scale: 1,
+    },
+    size: {
+      width: 0.18,
+      depth: 0.18,
+      height: prefab.height,
+    },
+    style: {
+      topColor: prefab.style.topColor,
+      fillColor: prefab.style.sideColor,
+      alpha: prefab.style.alpha,
+    },
+    zLayer: prefab.zLayer,
+    editable: true,
+    meta: {
+      customPrefabId: prefab.id,
+      customFootprint: serializeFootprint(prefab.footprint),
+    },
+  };
 }
 
 export function getKindLabel(kind: AddableSceneElementKind): string {
