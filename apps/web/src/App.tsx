@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
-import { LaneCanvas } from "./components/LaneCanvas";
+import { LaneCanvas, type LaneCanvasHandle } from "./components/LaneCanvas";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
+import {
+  ADDABLE_SCENE_ELEMENT_KINDS,
+  getKindLabel,
+  type AddableSceneElementKind,
+} from "./scene/factory";
 import type { LaneEditorSelection, PlayerId } from "./types";
 
 function formatEditorValue(value: number): string {
@@ -23,8 +28,12 @@ function App() {
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
   const [editorMode, setEditorMode] = useState(false);
   const [editorSelection, setEditorSelection] = useState<LaneEditorSelection | null>(null);
+  const [newElementKind, setNewElementKind] = useState<AddableSceneElementKind>(ADDABLE_SCENE_ELEMENT_KINDS[0]);
+  const [sceneJsonDraft, setSceneJsonDraft] = useState("");
+  const [sceneIoStatus, setSceneIoStatus] = useState<string>("");
   const [editorPanelOffset, setEditorPanelOffset] = useState({ x: 0, y: 0 });
   const editorPanelRef = useRef<HTMLElement | null>(null);
+  const laneCanvasRef = useRef<LaneCanvasHandle | null>(null);
   const editorPanelDragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -161,6 +170,98 @@ function App() {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
+  async function exportSceneJson() {
+    const api = laneCanvasRef.current;
+    if (!api) return;
+
+    const json = api.exportSceneJson();
+    setSceneJsonDraft(json);
+    setSceneIoStatus("Scene exportee.");
+
+    try {
+      if (window.isSecureContext && window.navigator.clipboard) {
+        await window.navigator.clipboard.writeText(json);
+        setSceneIoStatus("Scene exportee et copiee dans le presse-papier.");
+      }
+    } catch {
+      setSceneIoStatus("Scene exportee (copie presse-papier non disponible).");
+    }
+  }
+
+  function importSceneJson() {
+    const api = laneCanvasRef.current;
+    if (!api) return;
+    const result = api.importSceneJson(sceneJsonDraft);
+    if (result.ok) {
+      setEditorSelection(null);
+      setSceneIoStatus("Scene importee.");
+    } else {
+      setSceneIoStatus(`Import refuse: ${result.error}`);
+    }
+  }
+
+  function resetSceneJson() {
+    const api = laneCanvasRef.current;
+    if (!api) return;
+    api.resetScene();
+    setEditorSelection(null);
+    setSceneIoStatus("Scene reset sur la configuration par defaut.");
+    setSceneJsonDraft("");
+  }
+
+  function addSceneElement() {
+    const api = laneCanvasRef.current;
+    if (!api) return;
+    const result = api.addSceneElement(newElementKind);
+    if (result.ok) {
+      setSceneIoStatus(`Element ajoute: ${result.id}.`);
+      return;
+    }
+    setSceneIoStatus(`Ajout refuse: ${result.error}`);
+  }
+
+  function deleteSelectedElement() {
+    const api = laneCanvasRef.current;
+    if (!api) return;
+    const result = api.deleteSelectedElement();
+    if (result.ok) {
+      setEditorSelection(null);
+      setSceneIoStatus(`Element supprime: ${result.id}.`);
+      return;
+    }
+    setSceneIoStatus(`Suppression refusee: ${result.error}`);
+  }
+
+  useEffect(() => {
+    if (!editorMode) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" || event.repeat) return;
+
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const tagName = target.tagName.toLowerCase();
+        const isFormField = tagName === "input" || tagName === "textarea" || tagName === "select";
+        if (isFormField || target.isContentEditable) return;
+      }
+
+      const api = laneCanvasRef.current;
+      if (!api) return;
+
+      const result = api.deleteSelectedElement();
+      if (result.ok) {
+        event.preventDefault();
+        setEditorSelection(null);
+        setSceneIoStatus(`Element supprime: ${result.id}.`);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editorMode]);
+
   const showServerUnavailable = status === "closed" || status === "error";
 
   return (
@@ -267,6 +368,7 @@ function App() {
 
       <section className="game-stage" aria-label="Game viewport">
         <LaneCanvas
+          ref={laneCanvasRef}
           snapshots={snapshots}
           editorMode={editorMode}
           onEditorSelectionChange={setEditorSelection}
@@ -291,10 +393,60 @@ function App() {
             <span>Drag = deplacer, carre = taille, rond = rotation, Alt+drag = camera, Alt+molette = haut/bas</span>
           </div>
 
-          {!editorSelection && (
-            <div className="editor-panel__empty">
-              Selectionne un element du plateau (lane, chateau P1, chateau P2).
+          <div className="editor-panel__section">
+            <h3>Elements</h3>
+            <div className="editor-panel__actions editor-panel__actions--row">
+              <label className="editor-panel__field">
+                <span>Type</span>
+                <select
+                  className="editor-panel__select"
+                  value={newElementKind}
+                  onChange={(event) => setNewElementKind(event.target.value as AddableSceneElementKind)}
+                >
+                  {ADDABLE_SCENE_ELEMENT_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {getKindLabel(kind)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="editor-panel__btn" onClick={addSceneElement}>
+                Ajouter element
+              </button>
+              <button
+                type="button"
+                className="editor-panel__btn editor-panel__btn--danger"
+                onClick={deleteSelectedElement}
+              >
+                Supprimer selection
+              </button>
             </div>
+          </div>
+
+          <div className="editor-panel__section">
+            <h3>Scene JSON</h3>
+            <div className="editor-panel__actions">
+              <button type="button" className="editor-panel__btn" onClick={() => void exportSceneJson()}>
+                Export + copy
+              </button>
+              <button type="button" className="editor-panel__btn" onClick={importSceneJson}>
+                Import
+              </button>
+              <button type="button" className="editor-panel__btn editor-panel__btn--ghost" onClick={resetSceneJson}>
+                Reset scene
+              </button>
+            </div>
+            <textarea
+              className="editor-panel__textarea"
+              value={sceneJsonDraft}
+              onChange={(event) => setSceneJsonDraft(event.target.value)}
+              placeholder="Colle ici un JSON de scene puis clique Import."
+            />
+            {sceneIoStatus && <div className="editor-panel__io-status">{sceneIoStatus}</div>}
+          </div>
+
+          {!editorSelection && (
+            <div className="editor-panel__empty">Selectionne un element de scene (lane, chateau, decor).</div>
           )}
 
           {editorSelection && (
@@ -304,6 +456,8 @@ function App() {
                 <code>{editorSelection.id}</code>
                 <span>Type</span>
                 <code>{editorSelection.elementType}</code>
+                <span>Kind</span>
+                <code>{editorSelection.kind}</code>
                 <span>Label</span>
                 <code>{editorSelection.label}</code>
               </div>

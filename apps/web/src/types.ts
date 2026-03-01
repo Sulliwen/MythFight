@@ -1,3 +1,5 @@
+import type { SceneElementKind } from "./scene/sceneTypes";
+
 export type PlayerId = "player1" | "player2";
 
 export type Unit = {
@@ -38,12 +40,13 @@ export type PongMsg = {
 
 export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;
 
-export type LaneEditorElementType = "board" | "castle";
+export type LaneEditorElementType = "scene_element";
 
 export type LaneEditorSelection = {
-  id: "lane-board" | "castle-player1" | "castle-player2";
+  id: string;
   label: string;
   elementType: LaneEditorElementType;
+  kind: SceneElementKind;
   htmlTarget: string;
   cssTarget: string;
   tsTarget: string;

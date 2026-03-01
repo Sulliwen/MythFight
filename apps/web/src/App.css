@@ -208,6 +208,61 @@
   margin-top: 10px;
 }
 
+.editor-panel__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.editor-panel__actions--row {
+  align-items: flex-end;
+}
+
+.editor-panel__btn {
+  min-height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: rgba(15, 23, 42, 0.9);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.editor-panel__btn--ghost {
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+.editor-panel__btn--danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.editor-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
+
+.editor-panel__field span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.editor-panel__select {
+  min-height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
 .editor-panel__section h3 {
   margin: 0 0 6px 0;
   font-size: 11px;
@@ -259,6 +314,26 @@
   overflow-x: auto;
   font-size: 11px;
   line-height: 1.35;
+}
+
+.editor-panel__textarea {
+  width: 100%;
+  min-height: 120px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(2, 6, 23, 0.8);
+  color: #dbeafe;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.editor-panel__io-status {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #93c5fd;
 }
 
 .editor-panel__hint {
