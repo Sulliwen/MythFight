@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Application, Graphics } from "pixi.js";
+import { Application, Container, Graphics } from "pixi.js";
 import type { PlayerId, SnapshotMsg, Unit } from "../types";
 
 type LaneCanvasProps = {
@@ -11,14 +11,30 @@ const WORLD_MAX_X = 1000;
 const INTERPOLATION_DELAY_MS = 100;
 
 const DESIGN_WIDTH = 980;
-const DESIGN_HEIGHT = 220;
+const DESIGN_HEIGHT = 420;
 const ASPECT_RATIO = DESIGN_WIDTH / DESIGN_HEIGHT;
 const MIN_CANVAS_WIDTH = 260;
 const MAX_CANVAS_WIDTH = DESIGN_WIDTH;
+const LANE_HALF_WIDTH = 0.18;
+const PLAYER_ROW_OFFSET = 0.06;
+const MIN_ZOOM = 0.7;
+const MAX_ZOOM = 2.5;
 
 type CanvasSize = {
   width: number;
   height: number;
+};
+
+type IsoPoint = {
+  x: number;
+  y: number;
+};
+
+type IsoLayout = {
+  originX: number;
+  originY: number;
+  scaleX: number;
+  scaleY: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -31,9 +47,145 @@ function getCanvasSize(host: HTMLDivElement): CanvasSize {
   return { width, height };
 }
 
-function worldToScreenX(worldX: number, laneLeft: number, laneWidth: number): number {
-  const t = (worldX - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X);
-  return laneLeft + clamp(t, 0, 1) * laneWidth;
+function worldToProgress(worldX: number): number {
+  return clamp((worldX - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X), 0, 1);
+}
+
+function normalizeWheelDelta(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * 16;
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * window.innerHeight;
+  }
+  return event.deltaY;
+}
+
+function createIsoLayout(width: number, height: number): IsoLayout {
+  const horizontalLimit = (width * 0.84) / (1 + LANE_HALF_WIDTH * 2);
+  const verticalLimit = (height * 0.72) / ((1 + LANE_HALF_WIDTH * 2) * 0.5);
+  const scaleX = Math.max(60, Math.min(horizontalLimit, verticalLimit));
+  const scaleY = scaleX * 0.5;
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+
+  return {
+    originX: centerX - scaleX * 0.5,
+    originY: centerY - scaleY * 0.5,
+    scaleX,
+    scaleY,
+  };
+}
+
+function projectIso(layout: IsoLayout, u: number, v: number): IsoPoint {
+  return {
+    x: layout.originX + (u - v) * layout.scaleX,
+    y: layout.originY + (u + v) * layout.scaleY,
+  };
+}
+
+function drawPolygon(graphics: Graphics, points: IsoPoint[], color: number, alpha = 1): void {
+  if (points.length === 0) return;
+
+  graphics.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) {
+    graphics.lineTo(points[i].x, points[i].y);
+  }
+  graphics.closePath().fill({ color, alpha });
+}
+
+function offsetPoint(point: IsoPoint, dx: number, dy: number): IsoPoint {
+  return { x: point.x + dx, y: point.y + dy };
+}
+
+function drawLaneBoard(graphics: Graphics, layout: IsoLayout): void {
+  const outer = [
+    projectIso(layout, 0, -LANE_HALF_WIDTH),
+    projectIso(layout, 1, -LANE_HALF_WIDTH),
+    projectIso(layout, 1, +LANE_HALF_WIDTH),
+    projectIso(layout, 0, +LANE_HALF_WIDTH),
+  ];
+  drawPolygon(graphics, outer, 0x1e293b, 0.95);
+
+  const stripHalfWidth = LANE_HALF_WIDTH * 0.72;
+  const segments = 8;
+  for (let i = 0; i < segments; i += 1) {
+    const u0 = i / segments;
+    const u1 = (i + 1) / segments;
+    const color = i % 2 === 0 ? 0x2d3a50 : 0x263246;
+    drawPolygon(
+      graphics,
+      [
+        projectIso(layout, u0, -stripHalfWidth),
+        projectIso(layout, u1, -stripHalfWidth),
+        projectIso(layout, u1, +stripHalfWidth),
+        projectIso(layout, u0, +stripHalfWidth),
+      ],
+      color,
+      0.9
+    );
+  }
+
+  const edgeDark = [
+    projectIso(layout, 0, -LANE_HALF_WIDTH),
+    projectIso(layout, 1, -LANE_HALF_WIDTH),
+    projectIso(layout, 1, -stripHalfWidth),
+    projectIso(layout, 0, -stripHalfWidth),
+  ];
+  const edgeLight = [
+    projectIso(layout, 0, +stripHalfWidth),
+    projectIso(layout, 1, +stripHalfWidth),
+    projectIso(layout, 1, +LANE_HALF_WIDTH),
+    projectIso(layout, 0, +LANE_HALF_WIDTH),
+  ];
+  drawPolygon(graphics, edgeDark, 0x152032, 0.8);
+  drawPolygon(graphics, edgeLight, 0x3b4a62, 0.5);
+}
+
+function drawIsoCastle(
+  graphics: Graphics,
+  layout: IsoLayout,
+  centerU: number,
+  topColor: number,
+  leftFaceColor: number,
+  rightFaceColor: number
+): void {
+  const halfU = 0.06;
+  const halfV = 0.09;
+  const height = Math.max(16, layout.scaleY * 0.42);
+
+  const a = projectIso(layout, centerU - halfU, -halfV);
+  const b = projectIso(layout, centerU + halfU, -halfV);
+  const c = projectIso(layout, centerU + halfU, +halfV);
+  const d = projectIso(layout, centerU - halfU, +halfV);
+
+  const aTop = offsetPoint(a, 0, -height);
+  const bTop = offsetPoint(b, 0, -height);
+  const cTop = offsetPoint(c, 0, -height);
+  const dTop = offsetPoint(d, 0, -height);
+
+  drawPolygon(graphics, [d, c, cTop, dTop], leftFaceColor, 1);
+  drawPolygon(graphics, [b, c, cTop, bTop], rightFaceColor, 1);
+  drawPolygon(graphics, [aTop, bTop, cTop, dTop], topColor, 1);
+
+  const gateWidth = (c.x - d.x) * 0.26;
+  const gateHeight = height * 0.45;
+  const gateBottomY = (c.y + d.y) * 0.5 - 2;
+  const gateCenterX = (c.x + d.x) * 0.5;
+  const gateLeft = gateCenterX - gateWidth * 0.5;
+  const gateRight = gateCenterX + gateWidth * 0.5;
+  const gateTopY = gateBottomY - gateHeight;
+  drawPolygon(
+    graphics,
+    [
+      { x: gateLeft, y: gateBottomY },
+      { x: gateRight, y: gateBottomY },
+      { x: gateRight - gateWidth * 0.12, y: gateTopY },
+      { x: gateLeft + gateWidth * 0.12, y: gateTopY },
+    ],
+    0x0f172a,
+    0.85
+  );
 }
 
 function getInterpPair(snapshots: SnapshotMsg[], renderTime: number) {
@@ -103,10 +255,23 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
   useEffect(() => {
     let destroyed = false;
     let app: Application | null = null;
+    let worldContainer: Container | null = null;
     let staticG: Graphics | null = null;
     let unitsG: Graphics | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let removeWheelListener: (() => void) | null = null;
     const host = hostRef.current;
+    const camera = {
+      zoom: 1,
+      x: 0,
+      y: 0,
+    };
+
+    const applyCamera = () => {
+      if (!worldContainer) return;
+      worldContainer.scale.set(camera.zoom);
+      worldContainer.position.set(camera.x, camera.y);
+    };
 
     const init = async () => {
       if (!host) return;
@@ -128,11 +293,42 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
       app = pixiApp;
       host.appendChild(pixiApp.canvas);
 
+      worldContainer = new Container();
       staticG = new Graphics();
       unitsG = new Graphics();
 
-      pixiApp.stage.addChild(staticG);
-      pixiApp.stage.addChild(unitsG);
+      worldContainer.addChild(staticG);
+      worldContainer.addChild(unitsG);
+      pixiApp.stage.addChild(worldContainer);
+      applyCamera();
+
+      const onWheel = (event: WheelEvent) => {
+        if (!app) return;
+
+        event.preventDefault();
+        const rect = app.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        const oldZoom = camera.zoom;
+        const delta = normalizeWheelDelta(event);
+        const sensitivity = event.ctrlKey ? 0.0023 : 0.0016;
+        const nextZoom = clamp(oldZoom * Math.exp(-delta * sensitivity), MIN_ZOOM, MAX_ZOOM);
+
+        if (nextZoom === oldZoom) return;
+
+        const worldX = (mouseX - camera.x) / oldZoom;
+        const worldY = (mouseY - camera.y) / oldZoom;
+
+        camera.zoom = nextZoom;
+        camera.x = mouseX - worldX * nextZoom;
+        camera.y = mouseY - worldY * nextZoom;
+        applyCamera();
+      };
+
+      app.canvas.addEventListener("wheel", onWheel, { passive: false });
+      removeWheelListener = () => {
+        app?.canvas.removeEventListener("wheel", onWheel);
+      };
 
       resizeObserver = new ResizeObserver(() => {
         if (!app || !host) return;
@@ -148,42 +344,46 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
 
         const width = app.screen.width;
         const height = app.screen.height;
-        const scale = width / DESIGN_WIDTH;
-
-        const laneLeft = 80 * scale;
-        const laneWidth = 820 * scale;
-        const laneY = 100 * scale;
-        const laneHeight = 20 * scale;
-
-        const castleTop = 70 * scale;
-        const castleWidth = 40 * scale;
-        const castleHeight = 80 * scale;
-        const p1CastleLeft = 20 * scale;
-        const p2CastleLeft = width - 20 * scale - castleWidth;
+        const layout = createIsoLayout(width, height);
+        const worldXToUnitSize = width / DESIGN_WIDTH;
+        const unitRadius = Math.max(4, 8 * worldXToUnitSize);
 
         staticG.clear();
         unitsG.clear();
 
-        staticG.rect(laneLeft, laneY, laneWidth, laneHeight).fill({ color: 0x334155 });
-        staticG.rect(p1CastleLeft, castleTop, castleWidth, castleHeight).fill({ color: 0x3b82f6 });
-        staticG.rect(p2CastleLeft, castleTop, castleWidth, castleHeight).fill({ color: 0xef4444 });
+        drawLaneBoard(staticG, layout);
+        drawIsoCastle(staticG, layout, -0.08, 0x5ea7ff, 0x2f69b2, 0x4179bd);
+        drawIsoCastle(staticG, layout, 1.08, 0xff8f8f, 0xb84848, 0xc55a5a);
 
         const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
         const pair = getInterpPair(snapshotsRef.current, renderTime);
 
         if (!pair) return;
 
-        const drawUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
-        const unitRadius = Math.max(3, 7 * scale);
-        const playerOneY = laneY + 6 * scale;
-        const playerTwoY = laneY + 14 * scale;
+        const drawUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha)
+          .map((u) => {
+            const laneV = u.owner === "player1" ? -PLAYER_ROW_OFFSET : +PLAYER_ROW_OFFSET;
+            const point = projectIso(layout, worldToProgress(u.x), laneV);
+            return {
+              owner: u.owner,
+              x: point.x,
+              y: point.y,
+            };
+          })
+          .sort((left, right) => left.y - right.y);
 
         for (const u of drawUnits) {
-          const x = worldToScreenX(u.x, laneLeft, laneWidth);
-          const y = u.owner === "player1" ? playerOneY : playerTwoY;
-          const color = u.owner === "player1" ? 0x60a5fa : 0xf87171;
+          const color = u.owner === "player1" ? 0x77b8ff : 0xff9a9a;
+          const highlight = u.owner === "player1" ? 0xbddcff : 0xffd1d1;
+          const bodyY = u.y - unitRadius * 0.5;
 
-          unitsG.circle(x, y, unitRadius).fill({ color });
+          unitsG
+            .ellipse(u.x, u.y + unitRadius * 0.45, unitRadius * 1.1, unitRadius * 0.45)
+            .fill({ color: 0x020617, alpha: 0.42 });
+          unitsG.circle(u.x, bodyY, unitRadius).fill({ color, alpha: 1 });
+          unitsG
+            .circle(u.x - unitRadius * 0.28, bodyY - unitRadius * 0.34, unitRadius * 0.28)
+            .fill({ color: highlight, alpha: 0.55 });
         }
 
         // Keeps the canvas vertically centered if parent grows taller than content.
@@ -200,6 +400,9 @@ export function LaneCanvas({ snapshots }: LaneCanvasProps) {
       destroyed = true;
       if (resizeObserver) {
         resizeObserver.disconnect();
+      }
+      if (removeWheelListener) {
+        removeWheelListener();
       }
       if (app) {
         app.destroy(true, { children: true });
