@@ -22,6 +22,12 @@ type CastleGeometry = {
   dTop: IsoPoint;
 };
 
+type CastleWallFace = {
+  polygon: IsoPoint[];
+  avgY: number;
+  color: number;
+};
+
 function drawPolygonFill(graphics: Graphics, points: IsoPoint[], color: number, alpha = 1): void {
   if (points.length === 0) return;
   graphics.moveTo(points[0].x, points[0].y);
@@ -120,6 +126,88 @@ function getRotateHandle(center: IsoPoint, polygon: IsoPoint[]): IsoPoint {
   };
 }
 
+function shadeColor(color: number, factor: number): number {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const nextR = Math.max(0, Math.min(255, Math.round(r * factor)));
+  const nextG = Math.max(0, Math.min(255, Math.round(g * factor)));
+  const nextB = Math.max(0, Math.min(255, Math.round(b * factor)));
+  return (nextR << 16) | (nextG << 8) | nextB;
+}
+
+function averageY(points: IsoPoint[]): number {
+  if (points.length === 0) return 0;
+  let total = 0;
+  for (const point of points) total += point.y;
+  return total / points.length;
+}
+
+function midpoint(a: IsoPoint, b: IsoPoint): IsoPoint {
+  return { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
+}
+
+function buildCastleWallFaces(geometry: CastleGeometry, leftColor: number, rightColor: number): CastleWallFace[] {
+  const walls = [
+    { polygon: [geometry.a, geometry.b, geometry.bTop, geometry.aTop], color: shadeColor(rightColor, 0.78) },
+    { polygon: [geometry.b, geometry.c, geometry.cTop, geometry.bTop], color: rightColor },
+    { polygon: [geometry.c, geometry.d, geometry.dTop, geometry.cTop], color: leftColor },
+    { polygon: [geometry.d, geometry.a, geometry.aTop, geometry.dTop], color: shadeColor(leftColor, 0.78) },
+  ];
+
+  return walls
+    .map((wall) => ({
+      ...wall,
+      avgY: averageY(wall.polygon),
+    }))
+    .sort((left, right) => left.avgY - right.avgY);
+}
+
+function drawGateOnWall(graphics: Graphics, facePolygon: IsoPoint[]): void {
+  if (facePolygon.length !== 4) return;
+  const bottomStart = facePolygon[0];
+  const bottomEnd = facePolygon[1];
+  const topEnd = facePolygon[2];
+  const topStart = facePolygon[3];
+
+  const bottomCenter = midpoint(bottomStart, bottomEnd);
+  const topCenter = midpoint(topStart, topEnd);
+
+  const edgeX = bottomEnd.x - bottomStart.x;
+  const edgeY = bottomEnd.y - bottomStart.y;
+  const edgeLength = Math.hypot(edgeX, edgeY);
+  if (edgeLength < 0.001) return;
+
+  const edgeUnitX = edgeX / edgeLength;
+  const edgeUnitY = edgeY / edgeLength;
+  const gateWidth = edgeLength * 0.26;
+  const inset = gateWidth * 0.12;
+
+  const upX = topCenter.x - bottomCenter.x;
+  const upY = topCenter.y - bottomCenter.y;
+  const gateTopCenterX = bottomCenter.x + upX * 0.45;
+  const gateTopCenterY = bottomCenter.y + upY * 0.45;
+
+  const bottomLeft = {
+    x: bottomCenter.x - edgeUnitX * gateWidth * 0.5,
+    y: bottomCenter.y - edgeUnitY * gateWidth * 0.5,
+  };
+  const bottomRight = {
+    x: bottomCenter.x + edgeUnitX * gateWidth * 0.5,
+    y: bottomCenter.y + edgeUnitY * gateWidth * 0.5,
+  };
+  const topLeft = {
+    x: gateTopCenterX - edgeUnitX * (gateWidth * 0.5 - inset),
+    y: gateTopCenterY - edgeUnitY * (gateWidth * 0.5 - inset),
+  };
+  const topRight = {
+    x: gateTopCenterX + edgeUnitX * (gateWidth * 0.5 - inset),
+    y: gateTopCenterY + edgeUnitY * (gateWidth * 0.5 - inset),
+  };
+
+  drawPolygonFill(graphics, [bottomLeft, bottomRight, topRight, topLeft], 0x0f172a, 0.85);
+}
+
 export function drawSceneElement(graphics: Graphics, layout: IsoLayout, element: SceneElement): void {
   if (element.kind === "lane_floor") {
     const polygon = getLanePolygon(layout, element);
@@ -129,33 +217,14 @@ export function drawSceneElement(graphics: Graphics, layout: IsoLayout, element:
 
   if (element.kind === "castle") {
     const geometry = getCastleGeometry(layout, element);
-    drawPolygonFill(graphics, [geometry.d, geometry.c, geometry.cTop, geometry.dTop], element.style?.leftColor ?? 0x334155, 1);
-    drawPolygonFill(
-      graphics,
-      [geometry.b, geometry.c, geometry.cTop, geometry.bTop],
-      element.style?.rightColor ?? 0x475569,
-      1
-    );
+    const leftColor = element.style?.leftColor ?? 0x334155;
+    const rightColor = element.style?.rightColor ?? 0x475569;
+    const walls = buildCastleWallFaces(geometry, leftColor, rightColor);
+    for (const wall of walls) {
+      drawPolygonFill(graphics, wall.polygon, wall.color, 1);
+      drawGateOnWall(graphics, wall.polygon);
+    }
     drawPolygonFill(graphics, [geometry.aTop, geometry.bTop, geometry.cTop, geometry.dTop], element.style?.topColor ?? 0x64748b, 1);
-
-    const gateWidth = (geometry.c.x - geometry.d.x) * 0.26;
-    const gateHeight = (geometry.d.y - geometry.dTop.y) * 0.45;
-    const gateBottomY = (geometry.c.y + geometry.d.y) * 0.5 - 2;
-    const gateCenterX = (geometry.c.x + geometry.d.x) * 0.5;
-    const gateLeft = gateCenterX - gateWidth * 0.5;
-    const gateRight = gateCenterX + gateWidth * 0.5;
-    const gateTopY = gateBottomY - gateHeight;
-    drawPolygonFill(
-      graphics,
-      [
-        { x: gateLeft, y: gateBottomY },
-        { x: gateRight, y: gateBottomY },
-        { x: gateRight - gateWidth * 0.12, y: gateTopY },
-        { x: gateLeft + gateWidth * 0.12, y: gateTopY },
-      ],
-      0x0f172a,
-      0.85
-    );
     return;
   }
 
