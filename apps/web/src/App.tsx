@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
+import { PlayerUi } from "./components/PlayerUi";
 import { SpawnButton } from "./components/SpawnButton";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
@@ -52,6 +53,8 @@ function App() {
   }, []);
 
   const showServerUnavailable = status === "closed" || status === "error";
+  const nextControlledPlayer: PlayerId = controlledPlayer === "player1" ? "player2" : "player1";
+  const playerGold = { player1: 0, player2: 0 };
 
   return (
     <main className="app-shell">
@@ -60,6 +63,11 @@ function App() {
 
         <div className="action-dock">
           <SpawnButton className="action-btn" onSpawn={sendSpawn} disabled={status !== "connected"} />
+          <SpawnButton
+            className="action-btn action-btn--player"
+            onSpawn={() => setControlledPlayer(nextControlledPlayer)}
+            label={`Joueur: ${controlledPlayer}`}
+          />
           <SpawnButton
             className="action-btn action-btn--alt"
             onSpawn={sendNewGame}
@@ -121,6 +129,8 @@ function App() {
           </div>
         )}
       </div>
+
+      <PlayerUi castleHp={castleHp} gold={playerGold} controlledPlayer={controlledPlayer} />
 
       {debugPanelVisible && (
         <Hud
