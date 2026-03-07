@@ -7,6 +7,8 @@ import type { SceneElement } from "./sceneTypes";
 export type ElementEditorShape = {
   id: string;
   polygon: IsoPoint[];
+  hitPolygons?: IsoPoint[][];
+  outlinePolygons?: IsoPoint[][];
   center: IsoPoint;
   resizeHandle: IsoPoint;
   rotateHandle: IsoPoint;
@@ -326,6 +328,8 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
     return {
       id: element.id,
       polygon,
+      hitPolygons: [polygon],
+      outlinePolygons: [polygon],
       center,
       resizeHandle: polygon[2],
       rotateHandle: getRotateHandle(center, polygon),
@@ -334,13 +338,20 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
 
   if (element.kind === "castle") {
     const geometry = getCastleGeometry(layout, element);
-    const polygon = [geometry.aTop, geometry.bTop, geometry.cTop, geometry.c, geometry.d, geometry.dTop];
+    const top = [geometry.aTop, geometry.bTop, geometry.cTop, geometry.dTop];
+    const wallAB = [geometry.a, geometry.b, geometry.bTop, geometry.aTop];
+    const wallBC = [geometry.b, geometry.c, geometry.cTop, geometry.bTop];
+    const wallCD = [geometry.c, geometry.d, geometry.dTop, geometry.cTop];
+    const wallDA = [geometry.d, geometry.a, geometry.aTop, geometry.dTop];
+    const polygons = [top, wallAB, wallBC, wallCD, wallDA];
     return {
       id: element.id,
-      polygon,
+      polygon: top,
+      hitPolygons: polygons,
+      outlinePolygons: polygons,
       center,
       resizeHandle: geometry.cTop,
-      rotateHandle: getRotateHandle(center, polygon),
+      rotateHandle: getRotateHandle(center, top),
     };
   }
 
@@ -349,6 +360,8 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
     return {
       id: element.id,
       polygon,
+      hitPolygons: [polygon],
+      outlinePolygons: [polygon],
       center,
       resizeHandle: polygon[1],
       rotateHandle: getRotateHandle(center, polygon),
@@ -361,9 +374,12 @@ export function getElementEditorShape(layout: IsoLayout, element: SceneElement):
     const topScale = typeof topScaleMeta === "number" ? Math.max(0.2, Math.min(1.2, topScaleMeta)) : 1;
     const geometry = getCustomPrefabGeometry(layout, element, footprint, topScale);
     if (geometry.top.length < 3) return null;
+    const hitPolygons = [geometry.top, ...geometry.sideFaces.map((face) => face.polygon)];
     return {
       id: element.id,
       polygon: geometry.top,
+      hitPolygons,
+      outlinePolygons: hitPolygons,
       center,
       resizeHandle: geometry.top[Math.floor(geometry.top.length / 2)],
       rotateHandle: getRotateHandle(center, geometry.top),

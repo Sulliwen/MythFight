@@ -1,13 +1,18 @@
 import type { SceneElementKind } from "./scene/sceneTypes";
 
 export type PlayerId = "player1" | "player2";
+export type UnitState = "moving" | "attacking";
+export type CreatureId = "golem";
 
 export type Unit = {
   id: string;
+  creatureId: CreatureId;
   owner: PlayerId;
   x: number;
   vx: number;
   hp: number;
+  state: UnitState;
+  attackCycleTick?: number;
 };
 
 export type WelcomeMsg = {

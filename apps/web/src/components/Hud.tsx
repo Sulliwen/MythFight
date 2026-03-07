@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
 import type { PlayerId } from "../types";
+import { useDraggablePanel } from "../hooks/useDraggablePanel";
 
 type HudProps = {
   mode?: "full" | "core-stats";
@@ -15,6 +14,10 @@ type HudProps = {
   onSimulatedLagChange: (value: number) => void;
   showSnapshotDebug: boolean;
   onToggleSnapshotDebug: () => void;
+  showHitboxDebug: boolean;
+  onToggleHitboxDebug: () => void;
+  showImageOutlineDebug: boolean;
+  onToggleImageOutlineDebug: () => void;
   castleHp: {
     player1: number;
     player2: number;
@@ -56,65 +59,17 @@ export function Hud(props: HudProps) {
     onSimulatedLagChange,
     showSnapshotDebug,
     onToggleSnapshotDebug,
+    showHitboxDebug,
+    onToggleHitboxDebug,
+    showImageOutlineDebug,
+    onToggleImageOutlineDebug,
     castleHp,
     unitsCount,
     lastMessage,
   } = props;
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const panelRef = useRef<HTMLElement | null>(null);
-  const dragStateRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-    baseLeft: number;
-    baseTop: number;
-    width: number;
-    height: number;
-  } | null>(null);
-
-  useEffect(() => {
-    if (mode !== "full") return;
-
-    const clampToViewport = () => {
-      const panel = panelRef.current;
-      if (!panel) return;
-
-      const rect = panel.getBoundingClientRect();
-      const margin = 8;
-      let adjustX = 0;
-      let adjustY = 0;
-
-      if (rect.left < margin) {
-        adjustX = margin - rect.left;
-      } else if (rect.right > window.innerWidth - margin) {
-        adjustX = window.innerWidth - margin - rect.right;
-      }
-
-      if (rect.top < margin) {
-        adjustY = margin - rect.top;
-      } else if (rect.bottom > window.innerHeight - margin) {
-        adjustY = window.innerHeight - margin - rect.bottom;
-      }
-
-      if (adjustX !== 0 || adjustY !== 0) {
-        setDragOffset((prev) => ({
-          x: prev.x + adjustX,
-          y: prev.y + adjustY,
-        }));
-      }
-    };
-
-    clampToViewport();
-    window.addEventListener("resize", clampToViewport);
-    window.addEventListener("orientationchange", clampToViewport);
-
-    return () => {
-      window.removeEventListener("resize", clampToViewport);
-      window.removeEventListener("orientationchange", clampToViewport);
-    };
-  }, [mode]);
+  const { panelRef, offset: dragOffset, onDragStart, onDragMove, onDragEnd } = useDraggablePanel({
+    enabled: mode === "full",
+  });
 
   if (mode === "core-stats") {
     return (
@@ -144,55 +99,6 @@ export function Hud(props: HudProps) {
   }
 
   const isConnected = status === "connected";
-
-  function onDragStart(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    const rect = panel.getBoundingClientRect();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: dragOffset.x,
-      originY: dragOffset.y,
-      baseLeft: rect.left - dragOffset.x,
-      baseTop: rect.top - dragOffset.y,
-      width: rect.width,
-      height: rect.height,
-    };
-  }
-
-  function onDragMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const state = dragStateRef.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-
-    const dx = event.clientX - state.startX;
-    const dy = event.clientY - state.startY;
-
-    const nextX = state.originX + dx;
-    const nextY = state.originY + dy;
-    const margin = 8;
-
-    const minX = margin - state.baseLeft;
-    const maxX = window.innerWidth - margin - state.baseLeft - state.width;
-    const minY = margin - state.baseTop;
-    const maxY = window.innerHeight - margin - state.baseTop - state.height;
-
-    setDragOffset({
-      x: Math.max(minX, Math.min(maxX, nextX)),
-      y: Math.max(minY, Math.min(maxY, nextY)),
-    });
-  }
-
-  function onDragEnd(event: ReactPointerEvent<HTMLDivElement>) {
-    const state = dragStateRef.current;
-    if (!state || state.pointerId !== event.pointerId) return;
-    dragStateRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-  }
 
   return (
     <aside
@@ -269,6 +175,30 @@ export function Hud(props: HudProps) {
         <div className="hud-row">
           <span>Castle P2</span>
           <strong>{castleHp.player2}</strong>
+        </div>
+      </details>
+
+      <details className="hud-submenu">
+        <summary>Overlays</summary>
+        <div className="hud-row">
+          <span>Afficher hitbox</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showHitboxDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onToggleHitboxDebug}
+          >
+            {showHitboxDebug ? "on" : "off"}
+          </button>
+        </div>
+        <div className="hud-row">
+          <span>Contour images</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showImageOutlineDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onToggleImageOutlineDebug}
+          >
+            {showImageOutlineDebug ? "on" : "off"}
+          </button>
         </div>
       </details>
     </aside>
