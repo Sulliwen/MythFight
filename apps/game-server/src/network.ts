@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { getJoinPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
-import { buildSnapshot, resetWorld, spawnUnit } from "./world.js";
+import { TICK_RATE, buildSnapshot, resetWorld, spawnUnit } from "./world.js";
 import type { PlayerId, WorldState } from "./types.js";
 
 type ClientsMap = Map<WebSocket, PlayerId>;
@@ -28,7 +28,7 @@ export function handleConnection(
       socket.send(
         JSON.stringify({
           type: "welcome",
-          tickRate: 20,
+          tickRate: TICK_RATE,
           playerId: join.playerId,
         })
       );

@@ -1,16 +1,26 @@
+import type { CreatureId } from "./creatures.js";
+
 export type PlayerId = "player1" | "player2";
+export type UnitState = "moving" | "attacking";
 
 export type IncomingMessage = {
   type: string;
   [key: string]: unknown;
 };
 
-export type Unit = {
+export type UnitSnapshot = {
   id: string;
+  creatureId: CreatureId;
   owner: PlayerId;
   x: number;
   vx: number;
   hp: number;
+  state: UnitState;
+  attackCycleTick?: number;
+};
+
+export type Unit = UnitSnapshot & {
+  attackCycleStartTick: number;
 };
 
 export type WorldState = {
@@ -42,5 +52,5 @@ export type SnapshotMessage = {
     player1: number;
     player2: number;
   };
-  units: Unit[];
+  units: UnitSnapshot[];
 };
