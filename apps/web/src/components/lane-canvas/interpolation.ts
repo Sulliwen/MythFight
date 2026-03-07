@@ -1,4 +1,4 @@
-import { clamp } from "../../scene/iso";
+import { clamp } from "./math";
 import type { InterpolatedUnit, InterpolationPair } from "./types";
 import type { SnapshotMsg, Unit } from "../../types";
 

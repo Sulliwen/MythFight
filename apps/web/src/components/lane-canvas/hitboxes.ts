@@ -13,7 +13,6 @@ export type RectHitbox = {
   y: number;
   width: number;
   height: number;
-  color: number;
 };
 
 export type CircleHitbox = {
@@ -22,7 +21,6 @@ export type CircleHitbox = {
   x: number;
   y: number;
   radius: number;
-  color: number;
 };
 
 export type GameHitbox = RectHitbox | CircleHitbox;
@@ -79,7 +77,6 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     y: roadRect.y,
     width: roadRect.width,
     height: roadRect.height,
-    color: HITBOX_COLOR,
   };
 
   const castlePlayer1Hitbox: RectHitbox = {
@@ -89,7 +86,6 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     y: castlePlayer1Rect.y,
     width: castlePlayer1Rect.width,
     height: castlePlayer1Rect.height,
-    color: HITBOX_COLOR,
   };
 
   const castlePlayer2Hitbox: RectHitbox = {
@@ -99,7 +95,6 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     y: castlePlayer2Rect.y,
     width: castlePlayer2Rect.width,
     height: castlePlayer2Rect.height,
-    color: HITBOX_COLOR,
   };
 
   const unitHitboxes: CircleHitbox[] = units.map((unit) => ({
@@ -108,7 +103,6 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     x: unit.x,
     y: unit.y,
     radius: unitHitboxRadius,
-    color: HITBOX_COLOR,
   }));
 
   return [roadHitbox, castlePlayer1Hitbox, castlePlayer2Hitbox, ...unitHitboxes];

@@ -7,7 +7,6 @@ export type ImageOutlineRect = {
   y: number;
   width: number;
   height: number;
-  color: number;
 };
 
 export function drawImageOutlines(graphics: Graphics, outlines: ImageOutlineRect[]): void {

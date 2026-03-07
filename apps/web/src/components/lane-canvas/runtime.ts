@@ -1,9 +1,10 @@
 import { Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
-import { clamp, getCanvasSize } from "../../scene/iso";
 import {
   CASTLE_PLAYER1_TEXTURE_URL,
   CASTLE_PLAYER2_TEXTURE_URL,
   INTERPOLATION_DELAY_MS,
+  PLAYER1_LANE_OFFSET_RATIO,
+  PLAYER2_LANE_OFFSET_RATIO,
   ROAD_TEXTURE_URL,
   WORLD_MAX_X,
   WORLD_MIN_X,
@@ -11,6 +12,7 @@ import {
 import { defineGameHitboxes, drawHitboxOverlay } from "./hitboxes";
 import { drawImageOutlines } from "./image-outlines";
 import { getInterpolationPair, interpolateUnits } from "./interpolation";
+import { clamp, getCanvasSize } from "./math";
 import { computeTextureTrimRatios, NO_TRIM, type TextureTrimOptions, type TextureTrimRatios } from "./texture-trim";
 import { UnitSpriteLayer } from "./unit-sprite-layer";
 import type { LaneCanvasRuntimeBindings, ProjectedUnit } from "./types";
@@ -38,7 +40,7 @@ function projectUnitsToLane(
     .map((unit) => {
       const progress = clamp((unit.x - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X), 0, 1);
       const x = laneStartX + progress * (laneEndX - laneStartX);
-      const y = laneCenterY + (unit.owner === "player1" ? -laneHeight * 0.16 : laneHeight * 0.16);
+      const y = laneCenterY + laneHeight * (unit.owner === "player1" ? PLAYER1_LANE_OFFSET_RATIO : PLAYER2_LANE_OFFSET_RATIO);
       return {
         id: unit.id,
         owner: unit.owner,
@@ -175,21 +177,18 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
           y: roadOpaqueY,
           width: roadOpaqueWidth,
           height: roadOpaqueHeight,
-          color: 0xf59e0b,
         },
         {
           x: castlePlayer1OpaqueX,
           y: castlePlayer1OpaqueY,
           width: castlePlayer1OpaqueWidth,
           height: castlePlayer1OpaqueHeight,
-          color: 0x10b981,
         },
         {
           x: castlePlayer2OpaqueX,
           y: castlePlayer2OpaqueY,
           width: castlePlayer2OpaqueWidth,
           height: castlePlayer2OpaqueHeight,
-          color: 0xf43f5e,
         },
       ]);
     } else {

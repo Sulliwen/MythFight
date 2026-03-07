@@ -4,8 +4,12 @@ export const INTERPOLATION_DELAY_MS = 100;
 export const ATTACK_CYCLE_TICKS = 20;
 
 export const ROAD_TEXTURE_URL = "/sprites/environment/road.png";
-export const CASTLE_PLAYER1_TEXTURE_URL = "/sprites/JC/castle.png";
-export const CASTLE_PLAYER2_TEXTURE_URL = "/sprites/JC/castle.png";
+export const CASTLE_PLAYER1_TEXTURE_URL = "/sprites/JC/buildings/castle.png";
+export const CASTLE_PLAYER2_TEXTURE_URL = "/sprites/JC/buildings/castle.png";
+
+// Vertical lane offsets used to place each player's creature track around lane center.
+export const PLAYER1_LANE_OFFSET_RATIO = 0.02;
+export const PLAYER2_LANE_OFFSET_RATIO = 0.16;
 
 export const GOLEM_FRAME_COUNT = 6;
 

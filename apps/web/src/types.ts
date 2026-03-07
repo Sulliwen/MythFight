@@ -1,5 +1,3 @@
-import type { SceneElementKind } from "./scene/sceneTypes";
-
 export type PlayerId = "player1" | "player2";
 export type UnitState = "moving" | "attacking";
 export type CreatureId = "golem";
@@ -44,19 +42,3 @@ export type PongMsg = {
 };
 
 export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;
-
-export type LaneEditorElementType = "scene_element";
-
-export type LaneEditorSelection = {
-  id: string;
-  label: string;
-  elementType: LaneEditorElementType;
-  kind: SceneElementKind;
-  htmlTarget: string;
-  cssTarget: string;
-  tsTarget: string;
-  position: Record<string, number>;
-  size: Record<string, number>;
-  suggestedTs: string;
-  interactionHint: string;
-};
