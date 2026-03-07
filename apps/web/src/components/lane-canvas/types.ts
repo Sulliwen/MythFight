@@ -31,6 +31,8 @@ export type InterpolatedUnit = {
   vx: number;
   state: Unit["state"];
   attackCycleTick?: number;
+  attackIntervalTicks?: number;
+  attackHitOffsetTicks?: number;
 };
 
 export type ProjectedUnit = {
@@ -41,11 +43,15 @@ export type ProjectedUnit = {
   vx: number;
   state: Unit["state"];
   attackCycleTick?: number;
+  attackIntervalTicks?: number;
+  attackHitOffsetTicks?: number;
 };
 
-export type UnitAnimationMode = "walk" | "attack";
+export type UnitAnimationMode = "walk" | "attack" | "idle";
 
 export type UnitSpriteEntry = {
   sprite: AnimatedSprite;
   mode: UnitAnimationMode;
+  lastAttackFrame?: number;
+  lastAttackCycleTick?: number;
 };

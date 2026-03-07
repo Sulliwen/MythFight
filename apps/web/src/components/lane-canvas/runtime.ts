@@ -49,6 +49,8 @@ function projectUnitsToLane(
         vx: unit.vx,
         state: unit.state,
         attackCycleTick: unit.attackCycleTick,
+        attackIntervalTicks: unit.attackIntervalTicks,
+        attackHitOffsetTicks: unit.attackHitOffsetTicks,
       };
     })
     .sort((left, right) => left.y - right.y);

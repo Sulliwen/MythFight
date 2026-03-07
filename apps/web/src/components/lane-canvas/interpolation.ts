@@ -41,17 +41,37 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
         vx: a.vx + (b.vx - a.vx) * alpha,
         state: alpha < 0.5 ? a.state : b.state,
         attackCycleTick: alpha < 0.5 ? a.attackCycleTick : b.attackCycleTick,
+        attackIntervalTicks: alpha < 0.5 ? a.attackIntervalTicks : b.attackIntervalTicks,
+        attackHitOffsetTicks: alpha < 0.5 ? a.attackHitOffsetTicks : b.attackHitOffsetTicks,
       });
       continue;
     }
 
     if (b) {
-      result.push({ id, owner: b.owner, x: b.x, vx: b.vx, state: b.state, attackCycleTick: b.attackCycleTick });
+      result.push({
+        id,
+        owner: b.owner,
+        x: b.x,
+        vx: b.vx,
+        state: b.state,
+        attackCycleTick: b.attackCycleTick,
+        attackIntervalTicks: b.attackIntervalTicks,
+        attackHitOffsetTicks: b.attackHitOffsetTicks,
+      });
       continue;
     }
 
     if (a) {
-      result.push({ id, owner: a.owner, x: a.x, vx: a.vx, state: a.state, attackCycleTick: a.attackCycleTick });
+      result.push({
+        id,
+        owner: a.owner,
+        x: a.x,
+        vx: a.vx,
+        state: a.state,
+        attackCycleTick: a.attackCycleTick,
+        attackIntervalTicks: a.attackIntervalTicks,
+        attackHitOffsetTicks: a.attackHitOffsetTicks,
+      });
     }
   }
 

@@ -108,8 +108,10 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
     },
     units: world.units.map((u) => {
       const creatureStats = getCreatureStats(u.creatureId);
+      const attackIntervalTicks = creatureStats.attackIntervalTicks;
       const attackCycleTick =
-        u.state === "attacking" ? (world.tick - u.attackCycleStartTick) % creatureStats.attackIntervalTicks : undefined;
+        u.state === "attacking" ? (world.tick - u.attackCycleStartTick) % attackIntervalTicks : undefined;
+      const attackHitOffsetTicks = u.state === "attacking" ? getAttackHitOffsetTicks(u.creatureId) : undefined;
 
       return {
         id: u.id,
@@ -120,6 +122,8 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
         hp: u.hp,
         state: u.state,
         attackCycleTick,
+        attackIntervalTicks: u.state === "attacking" ? attackIntervalTicks : undefined,
+        attackHitOffsetTicks,
       };
     }),
   };

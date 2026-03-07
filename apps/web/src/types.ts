@@ -11,6 +11,8 @@ export type Unit = {
   hp: number;
   state: UnitState;
   attackCycleTick?: number;
+  attackIntervalTicks?: number;
+  attackHitOffsetTicks?: number;
 };
 
 export type WelcomeMsg = {
