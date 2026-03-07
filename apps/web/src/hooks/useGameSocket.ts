@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { INTERPOLATION_DELAY_MS } from "../components/lane-canvas/constants";
 import type { PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
@@ -66,16 +67,20 @@ const WS_URL = resolveWebSocketUrl();
 
 export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
+  const lastServerTickRef = useRef<number | null>(null);
   const simulatedLagRef = useRef<number>(0);
   const pendingSnapshotTimersRef = useRef<number[]>([]);
+  const pendingDisplayHpTimersRef = useRef<number[]>([]);
   const [showSnapshotDebug, setShowSnapshotDebug] = useState<boolean>(false);
   const showSnapshotDebugRef = useRef<boolean>(showSnapshotDebug);
 
   const [status, setStatus] = useState<SocketStatus>("connecting");
   const [playerId, setPlayerId] = useState<string>("(none)");
   const [lastMessage, setLastMessage] = useState<string>("(none)");
+  const [roundId, setRoundId] = useState<number>(0);
   const [serverTick, setServerTick] = useState<number>(0);
   const [castleHp, setCastleHp] = useState({ player1: 0, player2: 0 });
+  const [displayCastleHp, setDisplayCastleHp] = useState({ player1: 0, player2: 0 });
   const [unitsCount, setUnitsCount] = useState<number>(0);
   const [snapshots, setSnapshots] = useState<SnapshotMsg[]>([]);
   const [fps, setFps] = useState<number>(0);
@@ -83,9 +88,20 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const [simulatedLagMs, setSimulatedLagMs] = useState<number>(0);
 
   const applySnapshot = (data: SnapshotMsg) => {
+    if (lastServerTickRef.current !== null && data.tick < lastServerTickRef.current) {
+      setRoundId((prev) => prev + 1);
+    }
+    lastServerTickRef.current = data.tick;
+
     setServerTick(data.tick);
     setCastleHp(data.castle);
     setUnitsCount(data.units.length);
+
+    const hpTimerId = window.setTimeout(() => {
+      setDisplayCastleHp(data.castle);
+      pendingDisplayHpTimersRef.current = pendingDisplayHpTimersRef.current.filter((id) => id !== hpTimerId);
+    }, INTERPOLATION_DELAY_MS);
+    pendingDisplayHpTimersRef.current.push(hpTimerId);
 
     setSnapshots((prev) => {
       const next = [...prev, data];
@@ -103,6 +119,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
       console.warn("VITE_WS_URL should use wss:// in production for secure PWA deployments.");
     }
 
+    lastServerTickRef.current = null;
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     let pingIntervalId: number | null = null;
@@ -188,6 +205,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
         window.clearTimeout(timerId);
       }
       pendingSnapshotTimersRef.current = [];
+      for (const timerId of pendingDisplayHpTimersRef.current) {
+        window.clearTimeout(timerId);
+      }
+      pendingDisplayHpTimersRef.current = [];
       ws.close();
     };
   }, [playerIdInput]);
@@ -241,8 +262,10 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     status,
     playerId,
     lastMessage,
+    roundId,
     serverTick,
     castleHp,
+    displayCastleHp,
     unitsCount,
     snapshots,
     fps,

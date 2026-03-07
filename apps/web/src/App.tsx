@@ -2,12 +2,23 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
+import { MenuOverlay } from "./components/menu/MenuOverlay";
 import { PlayerUi } from "./components/PlayerUi";
 import { SpawnButton } from "./components/SpawnButton";
+import { VictoryOverlay } from "./components/victory/VictoryOverlay";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
 import type { PlayerId } from "./types";
+
+type MatchOutcome = PlayerId | "draw" | null;
+
+function getMatchOutcome(castleHp: { player1: number; player2: number }): MatchOutcome {
+  if (castleHp.player1 <= 0 && castleHp.player2 <= 0) return "draw";
+  if (castleHp.player1 <= 0) return "player2";
+  if (castleHp.player2 <= 0) return "player1";
+  return null;
+}
 
 function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
@@ -16,6 +27,8 @@ function App() {
   const [debugPanelVisible, setDebugPanelVisible] = useState(false);
   const [showHitboxDebug, setShowHitboxDebug] = useState(true);
   const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
 
   const { installPromptAvailable, promptInstall, showIosInstallHint } = usePwaInstall();
@@ -24,6 +37,7 @@ function App() {
   const {
     status,
     playerId,
+    roundId,
     serverTick,
     fps,
     rttMs,
@@ -31,7 +45,7 @@ function App() {
     setSimulatedLagMs,
     showSnapshotDebug,
     toggleSnapshotDebug,
-    castleHp,
+    displayCastleHp,
     unitsCount,
     lastMessage,
     snapshots,
@@ -55,6 +69,33 @@ function App() {
   const showServerUnavailable = status === "closed" || status === "error";
   const nextControlledPlayer: PlayerId = controlledPlayer === "player1" ? "player2" : "player1";
   const playerGold = { player1: 0, player2: 0 };
+  const matchOutcome = getMatchOutcome(displayCastleHp);
+  const showVictoryOverlay = matchOutcome !== null && dismissedRoundId !== roundId && !menuVisible;
+
+  const handleNewGame = () => {
+    sendNewGame();
+    setDismissedRoundId(roundId);
+    setMenuVisible(false);
+  };
+
+  const handleOpenMenu = () => {
+    setDismissedRoundId(roundId);
+    setMenuVisible(true);
+  };
+
+  const handleSetControlledPlayer = (player: PlayerId) => {
+    setControlledPlayer(player);
+    setMenuVisible(false);
+  };
+
+  const victoryTitle =
+    matchOutcome === "draw" ? "Match nul" : `Victoire de ${matchOutcome === "player1" ? "Player 1" : "Player 2"}`;
+  const victorySubtitle =
+    matchOutcome === "draw"
+      ? "Les deux chateaux sont tombes."
+      : matchOutcome === controlledPlayer
+        ? "Tu remportes la manche."
+        : "Tu perds la manche.";
 
   return (
     <main className="app-shell">
@@ -70,7 +111,7 @@ function App() {
           />
           <SpawnButton
             className="action-btn action-btn--alt"
-            onSpawn={sendNewGame}
+            onSpawn={handleNewGame}
             disabled={status !== "connected"}
             label="New game"
           />
@@ -130,7 +171,7 @@ function App() {
         )}
       </div>
 
-      <PlayerUi castleHp={castleHp} gold={playerGold} controlledPlayer={controlledPlayer} />
+      <PlayerUi castleHp={displayCastleHp} gold={playerGold} controlledPlayer={controlledPlayer} />
 
       {debugPanelVisible && (
         <Hud
@@ -150,7 +191,7 @@ function App() {
           onToggleHitboxDebug={() => setShowHitboxDebug((prev) => !prev)}
           showImageOutlineDebug={showImageOutlineDebug}
           onToggleImageOutlineDebug={() => setShowImageOutlineDebug((prev) => !prev)}
-          castleHp={castleHp}
+          castleHp={displayCastleHp}
           unitsCount={unitsCount}
           lastMessage={lastMessage}
         />
@@ -163,6 +204,18 @@ function App() {
           showImageOutlineDebug={showImageOutlineDebug}
         />
       </section>
+
+      {showVictoryOverlay && (
+        <VictoryOverlay title={victoryTitle} subtitle={victorySubtitle} onNewGame={handleNewGame} onMenu={handleOpenMenu} />
+      )}
+
+      {menuVisible && (
+        <MenuOverlay
+          onChoosePlayer={handleSetControlledPlayer}
+          onNewGame={handleNewGame}
+          onClose={() => setMenuVisible(false)}
+        />
+      )}
     </main>
   );
 }

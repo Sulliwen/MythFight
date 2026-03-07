@@ -201,6 +201,76 @@
   overflow: hidden;
 }
 
+.overlay-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 6, 14, 0.64);
+  backdrop-filter: blur(3px);
+}
+
+.overlay-card {
+  width: min(520px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  padding: 22px;
+}
+
+.overlay-screen--victory .overlay-card {
+  border-color: rgba(250, 204, 21, 0.55);
+}
+
+.overlay-screen--menu .overlay-card {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.overlay-title {
+  margin: 0;
+  font-size: 26px;
+  color: #f8fafc;
+  line-height: 1.15;
+}
+
+.overlay-subtitle {
+  margin: 10px 0 0 0;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.overlay-actions {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overlay-btn {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.86);
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 10px 14px;
+}
+
+.overlay-btn--primary {
+  border-color: rgba(250, 204, 21, 0.65);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.82), rgba(92, 33, 5, 0.82));
+  color: #fffbeb;
+}
+
+.overlay-btn--ghost {
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
 .editor-panel {
   position: absolute;
   z-index: 26;
@@ -694,6 +764,18 @@
 
   .game-stage {
     min-height: 200px;
+  }
+
+  .overlay-card {
+    padding: 16px;
+  }
+
+  .overlay-title {
+    font-size: 22px;
+  }
+
+  .overlay-actions {
+    grid-template-columns: 1fr;
   }
 
   .hud-card--core {
