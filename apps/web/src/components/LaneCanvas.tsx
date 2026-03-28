@@ -1,14 +1,30 @@
 import { useEffect, useRef } from "react";
 import { startLaneCanvasRuntime } from "./lane-canvas/runtime";
-import type { LaneCanvasProps } from "./lane-canvas/types";
+import type { BuildMode, LaneCanvasProps } from "./lane-canvas/types";
 
 export type { LaneCanvasProps } from "./lane-canvas/types";
 
-export function LaneCanvas({ snapshots, showHitboxDebug = false, showImageOutlineDebug = false }: LaneCanvasProps) {
+const DEFAULT_BUILD_MODE: BuildMode = { active: false, creatureId: "golem" };
+
+export function LaneCanvas({
+  snapshots,
+  showHitboxDebug = false,
+  showImageOutlineDebug = false,
+  showBuildZoneDebug = true,
+  showGameAreaDebug = true,
+  buildMode = DEFAULT_BUILD_MODE,
+  onPlaceBuilding,
+  controlledPlayer = "player1",
+}: LaneCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const snapshotsRef = useRef(snapshots);
   const showHitboxDebugRef = useRef(showHitboxDebug);
   const showImageOutlineDebugRef = useRef(showImageOutlineDebug);
+  const showBuildZoneDebugRef = useRef(showBuildZoneDebug);
+  const showGameAreaDebugRef = useRef(showGameAreaDebug);
+  const buildModeRef = useRef(buildMode);
+  const onPlaceBuildingRef = useRef(onPlaceBuilding);
+  const controlledPlayerRef = useRef(controlledPlayer);
 
   useEffect(() => {
     snapshotsRef.current = snapshots;
@@ -23,6 +39,26 @@ export function LaneCanvas({ snapshots, showHitboxDebug = false, showImageOutlin
   }, [showImageOutlineDebug]);
 
   useEffect(() => {
+    showBuildZoneDebugRef.current = showBuildZoneDebug;
+  }, [showBuildZoneDebug]);
+
+  useEffect(() => {
+    showGameAreaDebugRef.current = showGameAreaDebug;
+  }, [showGameAreaDebug]);
+
+  useEffect(() => {
+    buildModeRef.current = buildMode;
+  }, [buildMode]);
+
+  useEffect(() => {
+    onPlaceBuildingRef.current = onPlaceBuilding;
+  }, [onPlaceBuilding]);
+
+  useEffect(() => {
+    controlledPlayerRef.current = controlledPlayer;
+  }, [controlledPlayer]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
 
@@ -31,6 +67,11 @@ export function LaneCanvas({ snapshots, showHitboxDebug = false, showImageOutlin
       snapshotsRef,
       showHitboxDebugRef,
       showImageOutlineDebugRef,
+      showBuildZoneDebugRef,
+      showGameAreaDebugRef,
+      buildModeRef,
+      onPlaceBuildingRef,
+      controlledPlayerRef,
     });
   }, []);
 

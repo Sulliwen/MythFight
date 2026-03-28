@@ -80,6 +80,11 @@
   border-color: rgba(56, 189, 248, 0.6);
 }
 
+.action-btn--build-on {
+  border-color: rgba(251, 191, 36, 0.8);
+  background: rgba(251, 191, 36, 0.15);
+}
+
 .action-btn--debug-off {
   border-color: rgba(148, 163, 184, 0.35);
   opacity: 0.75;

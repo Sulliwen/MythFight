@@ -2,6 +2,14 @@ export type PlayerId = "player1" | "player2";
 export type UnitState = "moving" | "attacking";
 export type CreatureId = "golem";
 
+export type BuildingSnapshot = {
+  id: string;
+  owner: PlayerId;
+  creatureId: CreatureId;
+  x: number;
+  y: number;
+};
+
 export type Unit = {
   id: string;
   creatureId: CreatureId;
@@ -35,6 +43,7 @@ export type SnapshotMsg = {
     player2: number;
   };
   units: Unit[];
+  buildings: BuildingSnapshot[];
 };
 
 export type PongMsg = {

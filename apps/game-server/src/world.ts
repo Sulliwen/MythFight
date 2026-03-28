@@ -1,29 +1,85 @@
-import { DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getCreatureStats, type CreatureId } from "./creatures.js";
-import type { PlayerId, SnapshotMessage, Unit, WorldState } from "./types.js";
+import { DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getBuildingStats, getCreatureStats, type CreatureId } from "./creatures.js";
+import type { Building, PlayerId, SnapshotMessage, Unit, WorldState } from "./types.js";
 
 export const TICK_RATE = 20;
 export const TICK_MS = 1000 / TICK_RATE;
 export const LANE_MIN_X = 0;
 export const LANE_MAX_X = 1000;
+export const LANE_MIN_Y = 0;
+export const LANE_MAX_Y = 300;
 
 export function createWorld(): WorldState {
   return {
     tick: 0,
     nextUnitId: 1,
+    nextBuildingId: 1,
     castle: {
       player1: 100,
       player2: 100,
     },
     units: [],
+    buildings: [],
   };
 }
 
 export function resetWorld(world: WorldState): void {
   world.tick = 0;
   world.nextUnitId = 1;
+  world.nextBuildingId = 1;
   world.castle.player1 = 100;
   world.castle.player2 = 100;
   world.units = [];
+  world.buildings = [];
+}
+
+type PlaceBuildingResult =
+  | { ok: true; building: Building }
+  | { ok: false; reason: string };
+
+export function placeBuilding(
+  world: WorldState,
+  owner: PlayerId,
+  x: number,
+  y: number,
+  creatureId: CreatureId = DEFAULT_CREATURE_ID,
+): PlaceBuildingResult {
+  const stats = getBuildingStats(creatureId);
+  const r = stats.hitboxRadius;
+
+  // Must place on own side
+  const midX = (LANE_MIN_X + LANE_MAX_X) / 2;
+  if (owner === "player1" && x > midX) {
+    return { ok: false, reason: "must_place_on_own_side" };
+  }
+  if (owner === "player2" && x < midX) {
+    return { ok: false, reason: "must_place_on_own_side" };
+  }
+
+  // Must be within bounds (with hitbox margin)
+  if (x - r < LANE_MIN_X || x + r > LANE_MAX_X || y - r < LANE_MIN_Y || y + r > LANE_MAX_Y) {
+    return { ok: false, reason: "out_of_bounds" };
+  }
+
+  // Must not overlap existing buildings
+  for (const existing of world.buildings) {
+    const existingR = getBuildingStats(existing.creatureId).hitboxRadius;
+    const dx = x - existing.x;
+    const dy = y - existing.y;
+    const minDist = r + existingR;
+    if (dx * dx + dy * dy < minDist * minDist) {
+      return { ok: false, reason: "overlaps_existing_building" };
+    }
+  }
+
+  const building: Building = {
+    id: `b${world.nextBuildingId++}`,
+    owner,
+    creatureId,
+    x,
+    y,
+  };
+  world.buildings.push(building);
+  return { ok: true, building };
 }
 
 function createUnit(owner: PlayerId, id: number, creatureId: CreatureId): Unit {
@@ -126,5 +182,12 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
         attackHitOffsetTicks,
       };
     }),
+    buildings: world.buildings.map((b) => ({
+      id: b.id,
+      owner: b.owner,
+      creatureId: b.creatureId,
+      x: b.x,
+      y: b.y,
+    })),
   };
 }

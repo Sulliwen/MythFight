@@ -2,20 +2,24 @@ import { Application, Assets, Container, Graphics, Sprite, type Texture } from "
 import {
   CASTLE_PLAYER1_TEXTURE_URL,
   CASTLE_PLAYER2_TEXTURE_URL,
+  GOLEM_HOUSE_TEXTURE_URL,
   INTERPOLATION_DELAY_MS,
   PLAYER1_LANE_OFFSET_RATIO,
   PLAYER2_LANE_OFFSET_RATIO,
   ROAD_TEXTURE_URL,
   WORLD_MAX_X,
+  WORLD_MAX_Y,
   WORLD_MIN_X,
+  WORLD_MIN_Y,
 } from "./constants";
+import { BuildingSpriteLayer } from "./building-sprite-layer";
 import { defineGameHitboxes, drawHitboxOverlay } from "./hitboxes";
 import { drawImageOutlines } from "./image-outlines";
 import { getInterpolationPair, interpolateUnits } from "./interpolation";
 import { clamp, getCanvasSize } from "./math";
 import { computeTextureTrimRatios, NO_TRIM, type TextureTrimOptions, type TextureTrimRatios } from "./texture-trim";
 import { UnitSpriteLayer } from "./unit-sprite-layer";
-import type { LaneCanvasRuntimeBindings, ProjectedUnit } from "./types";
+import type { LaneCanvasRuntimeBindings, ProjectedBuilding, ProjectedUnit } from "./types";
 
 const ROAD_TRIM_OPTIONS: TextureTrimOptions = {
   alphaThreshold: 24,
@@ -56,8 +60,55 @@ function projectUnitsToLane(
     .sort((left, right) => left.y - right.y);
 }
 
+const BUILDING_HITBOX_RADIUS = 40; // must match server BuildingStats
+
+// Convert screen coordinates to world coordinates, clamping to valid building placement bounds
+function screenToWorld(
+  screenX: number,
+  screenY: number,
+  gameAreaX: number,
+  gameAreaY: number,
+  gameAreaWidth: number,
+  gameAreaHeight: number,
+): { worldX: number; worldY: number } {
+  const rawX = WORLD_MIN_X + ((screenX - gameAreaX) / gameAreaWidth) * (WORLD_MAX_X - WORLD_MIN_X);
+  const rawY = WORLD_MIN_Y + ((screenY - gameAreaY) / gameAreaHeight) * (WORLD_MAX_Y - WORLD_MIN_Y);
+  const worldX = clamp(rawX, WORLD_MIN_X + BUILDING_HITBOX_RADIUS, WORLD_MAX_X - BUILDING_HITBOX_RADIUS);
+  const worldY = clamp(rawY, WORLD_MIN_Y + BUILDING_HITBOX_RADIUS, WORLD_MAX_Y - BUILDING_HITBOX_RADIUS);
+  return { worldX, worldY };
+}
+
+function isValidBuildingPlacement(worldX: number, player: "player1" | "player2"): boolean {
+  const midX = (WORLD_MIN_X + WORLD_MAX_X) / 2;
+  return player === "player1" ? worldX <= midX : worldX >= midX;
+}
+
+// Convert world coordinates to screen coordinates
+function worldToScreen(
+  worldX: number,
+  worldY: number,
+  gameAreaX: number,
+  gameAreaY: number,
+  gameAreaWidth: number,
+  gameAreaHeight: number,
+): { screenX: number; screenY: number } {
+  const screenX = gameAreaX + ((worldX - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
+  const screenY = gameAreaY + ((worldY - WORLD_MIN_Y) / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
+  return { screenX, screenY };
+}
+
 export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () => void {
-  const { host, snapshotsRef, showHitboxDebugRef, showImageOutlineDebugRef } = bindings;
+  const {
+    host,
+    snapshotsRef,
+    showHitboxDebugRef,
+    showImageOutlineDebugRef,
+    showBuildZoneDebugRef,
+    showGameAreaDebugRef,
+    buildModeRef,
+    onPlaceBuildingRef,
+    controlledPlayerRef,
+  } = bindings;
   let roadTrimRatios: TextureTrimRatios = NO_TRIM;
   let castlePlayer1TrimRatios: TextureTrimRatios = NO_TRIM;
   let castlePlayer2TrimRatios: TextureTrimRatios = NO_TRIM;
@@ -68,10 +119,55 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let castlePlayer1Sprite: Sprite | null = null;
   let castlePlayer2Sprite: Sprite | null = null;
   let unitContainer: Container | null = null;
+  let buildingContainer: Container | null = null;
   let hitboxGraphics: Graphics | null = null;
   let imageOutlineGraphics: Graphics | null = null;
   let unitSpriteLayer: UnitSpriteLayer | null = null;
+  let buildingSpriteLayer: BuildingSpriteLayer | null = null;
+  let ghostSprite: Sprite | null = null;
+  let ghostTexture: Texture | null = null;
+  let buildZoneGraphics: Graphics | null = null;
+  let gameAreaGraphics: Graphics | null = null;
   let resizeObserver: ResizeObserver | null = null;
+
+  // Track current game area for coordinate conversion
+  let currentGameArea = { x: 0, y: 0, width: 1, height: 1 };
+  // Track mouse position in screen space
+  let mouseScreenX = 0;
+  let mouseScreenY = 0;
+  let mouseInCanvas = false;
+
+  const onPointerMove = (event: PointerEvent) => {
+    const canvas = app?.canvas;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    mouseScreenX = event.clientX - rect.left;
+    mouseScreenY = event.clientY - rect.top;
+    mouseInCanvas = true;
+  };
+
+  const onPointerLeave = () => {
+    mouseInCanvas = false;
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0) return;
+    if (!buildModeRef.current.active) return;
+
+    const canvas = app?.canvas;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = event.clientX - rect.left;
+    const sy = event.clientY - rect.top;
+
+    const { worldX, worldY } = screenToWorld(
+      sx, sy,
+      currentGameArea.x, currentGameArea.y,
+      currentGameArea.width, currentGameArea.height,
+    );
+
+    onPlaceBuildingRef.current?.(worldX, worldY, buildModeRef.current.creatureId);
+  };
 
   const renderFrame = () => {
     if (
@@ -80,6 +176,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       !castlePlayer1Sprite ||
       !castlePlayer2Sprite ||
       !unitSpriteLayer ||
+      !buildingSpriteLayer ||
       !hitboxGraphics ||
       !imageOutlineGraphics
     ) {
@@ -123,6 +220,13 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     const castlesBaseYPlayer1 = laneBottomY + castleHeight * castlePlayer1TrimRatios.bottom;
     const castlesBaseYPlayer2 = laneBottomY + castleHeight * castlePlayer2TrimRatios.bottom;
+
+    // Define game area for coordinate mapping: the entire visible canvas
+    const gameAreaX = 0;
+    const gameAreaY = 0;
+    const gameAreaWidth = width;
+    const gameAreaHeight = height;
+    currentGameArea = { x: gameAreaX, y: gameAreaY, width: gameAreaWidth, height: gameAreaHeight };
     const castlePlayer1OpaqueX = leftCastleX - castleWidthP1 * 0.5 + castleWidthP1 * castlePlayer1TrimRatios.left;
     const castlePlayer1OpaqueY = castlesBaseYPlayer1 - castleHeight + castleHeight * castlePlayer1TrimRatios.top;
     const castlePlayer1OpaqueWidth = Math.max(
@@ -156,8 +260,80 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     routeSprite.width = roadVisualWidth;
     routeSprite.height = roadVisualHeight;
 
+    // Render buildings from snapshot
     const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
     const pair = getInterpolationPair(snapshotsRef.current, renderTime);
+    const buildingScale = clamp((laneHeight * 0.6) / 256, 0.05, 0.3);
+
+    let projectedBuildings: ProjectedBuilding[] = [];
+    if (pair) {
+      const latestSnapshot = pair.b;
+      projectedBuildings = (latestSnapshot.buildings ?? []).map((b) => {
+        const { screenX, screenY } = worldToScreen(b.x, b.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY };
+      });
+      buildingSpriteLayer.renderBuildings(projectedBuildings, buildingScale);
+    } else {
+      buildingSpriteLayer.clear();
+    }
+
+    // Render ghost sprite in build mode (snap to clamped world position)
+    if (ghostSprite && ghostTexture) {
+      if (buildModeRef.current.active && mouseInCanvas) {
+        const { worldX, worldY } = screenToWorld(
+          mouseScreenX, mouseScreenY,
+          gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight,
+        );
+        const { screenX: snappedX, screenY: snappedY } = worldToScreen(
+          worldX, worldY,
+          gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight,
+        );
+
+        ghostSprite.visible = true;
+        ghostSprite.position.set(snappedX, snappedY);
+        ghostSprite.scale.set(buildingScale);
+
+        const valid = isValidBuildingPlacement(worldX, controlledPlayerRef.current);
+        ghostSprite.tint = valid ? 0x44ff44 : 0xff4444;
+        ghostSprite.alpha = 0.6;
+      } else {
+        ghostSprite.visible = false;
+      }
+    }
+
+    // Draw build zone outline when overlay setting is enabled
+    if (buildZoneGraphics) {
+      buildZoneGraphics.clear();
+      if (showBuildZoneDebugRef.current) {
+        const player = controlledPlayerRef.current;
+        const halfWidth = gameAreaWidth / 2;
+        const zoneX = player === "player1" ? gameAreaX : gameAreaX + halfWidth;
+        const zoneW = halfWidth;
+
+        const borderColor = player === "player1" ? 0x4a9eff : 0xff6b6b;
+        // Filled background
+        buildZoneGraphics.rect(zoneX, gameAreaY, zoneW, gameAreaHeight);
+        buildZoneGraphics.fill({ color: borderColor, alpha: 0.08 });
+        // Border outline
+        buildZoneGraphics.rect(zoneX, gameAreaY, zoneW, gameAreaHeight);
+        buildZoneGraphics.stroke({ color: borderColor, width: 2, alpha: 0.6 });
+      }
+    }
+
+    // Draw game area outline when overlay setting is enabled
+    if (gameAreaGraphics) {
+      gameAreaGraphics.clear();
+      if (showGameAreaDebugRef.current) {
+        gameAreaGraphics.rect(gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+        gameAreaGraphics.stroke({ color: 0xffa500, width: 2, alpha: 0.7 });
+      }
+    }
+
+    // Update cursor style
+    if (app.canvas) {
+      app.canvas.style.cursor = buildModeRef.current.active ? "crosshair" : "default";
+    }
+
     let projectedUnits: ProjectedUnit[] = [];
     if (pair) {
       const interpolatedUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
@@ -251,10 +427,16 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     app = pixiApp;
     host.appendChild(pixiApp.canvas);
 
-    const [roadTexture, castleP1Texture, castleP2Texture] = await Promise.all([
+    // Register pointer events on the canvas
+    pixiApp.canvas.addEventListener("pointermove", onPointerMove);
+    pixiApp.canvas.addEventListener("pointerleave", onPointerLeave);
+    pixiApp.canvas.addEventListener("pointerdown", onPointerDown);
+
+    const [roadTexture, castleP1Texture, castleP2Texture, golemHouseTexture] = await Promise.all([
       Assets.load<Texture>(ROAD_TEXTURE_URL),
       Assets.load<Texture>(CASTLE_PLAYER1_TEXTURE_URL),
       Assets.load<Texture>(CASTLE_PLAYER2_TEXTURE_URL),
+      Assets.load<Texture>(GOLEM_HOUSE_TEXTURE_URL),
     ]);
     const [roadTrim, castleP1Trim, castleP2Trim] = await Promise.all([
       computeTextureTrimRatios(ROAD_TEXTURE_URL, ROAD_TRIM_OPTIONS),
@@ -270,6 +452,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     roadTrimRatios = roadTrim;
     castlePlayer1TrimRatios = castleP1Trim;
     castlePlayer2TrimRatios = castleP2Trim;
+    ghostTexture = golemHouseTexture;
 
     const sceneContainer = new Container();
     routeSprite = new Sprite(roadTexture);
@@ -281,24 +464,43 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     castlePlayer2Sprite = new Sprite(castleP2Texture);
     castlePlayer2Sprite.anchor.set(0.5, 1);
 
+    buildingContainer = new Container();
+    buildingContainer.sortableChildren = true;
+
     unitContainer = new Container();
     unitContainer.sortableChildren = true;
+
+    // Ghost sprite for build mode preview
+    ghostSprite = new Sprite(golemHouseTexture);
+    ghostSprite.anchor.set(0.5, 0.9);
+    ghostSprite.visible = false;
+
     imageOutlineGraphics = new Graphics();
     hitboxGraphics = new Graphics();
+    buildZoneGraphics = new Graphics();
+    gameAreaGraphics = new Graphics();
 
     sceneContainer.addChild(routeSprite);
+    sceneContainer.addChild(gameAreaGraphics);
     sceneContainer.addChild(castlePlayer1Sprite);
     sceneContainer.addChild(castlePlayer2Sprite);
+    sceneContainer.addChild(buildZoneGraphics);
+    sceneContainer.addChild(buildingContainer);
     sceneContainer.addChild(unitContainer);
+    sceneContainer.addChild(ghostSprite);
     sceneContainer.addChild(imageOutlineGraphics);
     sceneContainer.addChild(hitboxGraphics);
 
     pixiApp.stage.addChild(sceneContainer);
 
+    buildingSpriteLayer = new BuildingSpriteLayer(buildingContainer);
+    await buildingSpriteLayer.loadTextures();
+
     unitSpriteLayer = new UnitSpriteLayer(unitContainer);
     await unitSpriteLayer.loadFrames();
 
     if (destroyed) {
+      buildingSpriteLayer.destroy();
       unitSpriteLayer.destroy();
       pixiApp.destroy(true);
       return;
@@ -318,6 +520,13 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
   return () => {
     destroyed = true;
+    const canvas = app?.canvas;
+    if (canvas) {
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+    }
+    buildingSpriteLayer?.destroy();
     unitSpriteLayer?.destroy();
     resizeObserver?.disconnect();
     if (app) app.destroy(true, { children: true });

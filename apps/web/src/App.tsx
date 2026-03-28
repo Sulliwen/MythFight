@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
+import type { BuildMode } from "./components/lane-canvas/types";
 import { MenuOverlay } from "./components/menu/MenuOverlay";
 import { PlayerUi } from "./components/PlayerUi";
 import { SpawnButton } from "./components/SpawnButton";
@@ -9,7 +10,7 @@ import { VictoryOverlay } from "./components/victory/VictoryOverlay";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
-import type { PlayerId } from "./types";
+import type { CreatureId, PlayerId } from "./types";
 
 type MatchOutcome = PlayerId | "draw" | null;
 
@@ -27,9 +28,12 @@ function App() {
   const [debugPanelVisible, setDebugPanelVisible] = useState(false);
   const [showHitboxDebug, setShowHitboxDebug] = useState(true);
   const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(true);
+  const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(true);
+  const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
+  const [buildMode, setBuildMode] = useState<BuildMode>({ active: false, creatureId: "golem" });
 
   const { installPromptAvailable, promptInstall, showIosInstallHint } = usePwaInstall();
   const { needRefresh, offlineReady, refreshApplication } = usePwaRuntime();
@@ -51,6 +55,7 @@ function App() {
     snapshots,
     sendSpawn,
     sendNewGame,
+    sendPlaceBuilding,
   } = useGameSocket(controlledPlayer);
 
   useEffect(() => {
@@ -65,6 +70,28 @@ function App() {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setBuildMode((prev) => (prev.active ? { ...prev, active: false } : prev));
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const handlePlaceBuilding = useCallback(
+    (worldX: number, worldY: number, creatureId: CreatureId) => {
+      sendPlaceBuilding(worldX, worldY, creatureId);
+      setBuildMode((prev) => ({ ...prev, active: false }));
+    },
+    [sendPlaceBuilding],
+  );
+
+  const toggleBuildMode = () => {
+    setBuildMode((prev) => ({ ...prev, active: !prev.active }));
+  };
 
   const showServerUnavailable = status === "closed" || status === "error";
   const nextControlledPlayer: PlayerId = controlledPlayer === "player1" ? "player2" : "player1";
@@ -103,6 +130,12 @@ function App() {
         <div className="app-title">MythFight POC</div>
 
         <div className="action-dock">
+          <SpawnButton
+            className={`action-btn ${buildMode.active ? "action-btn--build-on" : ""}`}
+            onSpawn={toggleBuildMode}
+            disabled={status !== "connected"}
+            label={buildMode.active ? "Annuler" : "Construire"}
+          />
           <SpawnButton className="action-btn" onSpawn={sendSpawn} disabled={status !== "connected"} />
           <SpawnButton
             className="action-btn action-btn--player"
@@ -191,6 +224,10 @@ function App() {
           onToggleHitboxDebug={() => setShowHitboxDebug((prev) => !prev)}
           showImageOutlineDebug={showImageOutlineDebug}
           onToggleImageOutlineDebug={() => setShowImageOutlineDebug((prev) => !prev)}
+          showBuildZoneDebug={showBuildZoneDebug}
+          onToggleBuildZoneDebug={() => setShowBuildZoneDebug((prev) => !prev)}
+          showGameAreaDebug={showGameAreaDebug}
+          onToggleGameAreaDebug={() => setShowGameAreaDebug((prev) => !prev)}
           castleHp={displayCastleHp}
           unitsCount={unitsCount}
           lastMessage={lastMessage}
@@ -202,6 +239,11 @@ function App() {
           snapshots={snapshots}
           showHitboxDebug={showHitboxDebug}
           showImageOutlineDebug={showImageOutlineDebug}
+          showBuildZoneDebug={showBuildZoneDebug}
+          showGameAreaDebug={showGameAreaDebug}
+          buildMode={buildMode}
+          onPlaceBuilding={handlePlaceBuilding}
+          controlledPlayer={controlledPlayer}
         />
       </section>
 

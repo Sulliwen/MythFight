@@ -18,6 +18,10 @@ type HudProps = {
   onToggleHitboxDebug: () => void;
   showImageOutlineDebug: boolean;
   onToggleImageOutlineDebug: () => void;
+  showBuildZoneDebug: boolean;
+  onToggleBuildZoneDebug: () => void;
+  showGameAreaDebug: boolean;
+  onToggleGameAreaDebug: () => void;
   castleHp: {
     player1: number;
     player2: number;
@@ -63,6 +67,10 @@ export function Hud(props: HudProps) {
     onToggleHitboxDebug,
     showImageOutlineDebug,
     onToggleImageOutlineDebug,
+    showBuildZoneDebug,
+    onToggleBuildZoneDebug,
+    showGameAreaDebug,
+    onToggleGameAreaDebug,
     castleHp,
     unitsCount,
     lastMessage,
@@ -198,6 +206,26 @@ export function Hud(props: HudProps) {
             onClick={onToggleImageOutlineDebug}
           >
             {showImageOutlineDebug ? "on" : "off"}
+          </button>
+        </div>
+        <div className="hud-row">
+          <span>Zone constructible</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showBuildZoneDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onToggleBuildZoneDebug}
+          >
+            {showBuildZoneDebug ? "on" : "off"}
+          </button>
+        </div>
+        <div className="hud-row">
+          <span>Zone de jeu</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showGameAreaDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onToggleGameAreaDebug}
+          >
+            {showGameAreaDebug ? "on" : "off"}
           </button>
         </div>
       </details>

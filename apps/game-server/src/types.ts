@@ -8,6 +8,16 @@ export type IncomingMessage = {
   [key: string]: unknown;
 };
 
+export type BuildingSnapshot = {
+  id: string;
+  owner: PlayerId;
+  creatureId: CreatureId;
+  x: number;
+  y: number;
+};
+
+export type Building = BuildingSnapshot;
+
 export type UnitSnapshot = {
   id: string;
   creatureId: CreatureId;
@@ -28,11 +38,13 @@ export type Unit = UnitSnapshot & {
 export type WorldState = {
   tick: number;
   nextUnitId: number;
+  nextBuildingId: number;
   castle: {
     player1: number;
     player2: number;
   };
   units: Unit[];
+  buildings: Building[];
 };
 
 export type WelcomeMessage = {
@@ -55,4 +67,5 @@ export type SnapshotMessage = {
     player2: number;
   };
   units: UnitSnapshot[];
+  buildings: BuildingSnapshot[];
 };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { INTERPOLATION_DELAY_MS } from "../components/lane-canvas/constants";
-import type { PlayerId, ServerMsg, SnapshotMsg } from "../types";
+import type { CreatureId, PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
 const DEFAULT_DEV_WS_URL = "ws://localhost:8082";
@@ -254,6 +254,12 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "new_game" }));
   }
 
+  function sendPlaceBuilding(x: number, y: number, creatureId: CreatureId) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "place_building", x, y, creatureId }));
+  }
+
   function toggleSnapshotDebug() {
     setShowSnapshotDebug((prev) => !prev);
   }
@@ -276,5 +282,6 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     toggleSnapshotDebug,
     sendSpawn,
     sendNewGame,
+    sendPlaceBuilding,
   };
 }

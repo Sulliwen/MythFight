@@ -8,7 +8,22 @@ export type CreatureStats = {
   attackAnimationFrameCount: number;
   attackHitFrameIndex: number;
   castleAttackPositionOffset: number;
+  hitboxRadius: number;
 };
+
+export type BuildingStats = {
+  hitboxRadius: number;
+};
+
+const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
+  golem: {
+    hitboxRadius: 40,
+  },
+};
+
+export function getBuildingStats(creatureId: CreatureId): BuildingStats {
+  return BUILDING_STATS[creatureId];
+}
 
 export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 
@@ -21,6 +36,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     attackAnimationFrameCount: 6,
     attackHitFrameIndex: 3, // 0-based -> frame 4/6
     castleAttackPositionOffset: 8,
+    hitboxRadius: 12,
   },
 };
 

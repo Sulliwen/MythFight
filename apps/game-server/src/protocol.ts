@@ -47,3 +47,26 @@ export function isSpawnMessage(message: IncomingMessage): boolean {
 export function isNewGameMessage(message: IncomingMessage): boolean {
   return message.type === "new_game";
 }
+
+type PlaceBuildingPayload = { x: number; y: number; creatureId: string };
+type PlaceBuildingPayloadResult =
+  | { ok: true; payload: PlaceBuildingPayload }
+  | { ok: false; reason: string };
+
+export function getPlaceBuildingPayload(message: IncomingMessage): PlaceBuildingPayloadResult {
+  if (message.type !== "place_building") {
+    return { ok: false, reason: "not_place_building" };
+  }
+
+  const { x, y, creatureId } = message as Record<string, unknown>;
+
+  if (typeof x !== "number" || typeof y !== "number") {
+    return { ok: false, reason: "invalid_coordinates" };
+  }
+
+  if (typeof creatureId !== "string") {
+    return { ok: false, reason: "invalid_creature_id" };
+  }
+
+  return { ok: true, payload: { x, y, creatureId } };
+}

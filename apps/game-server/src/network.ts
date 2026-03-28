@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { getJoinPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
-import { TICK_RATE, buildSnapshot, resetWorld, spawnUnit } from "./world.js";
+import { getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
+import { TICK_RATE, buildSnapshot, placeBuilding, resetWorld, spawnUnit } from "./world.js";
+import type { CreatureId } from "./creatures.js";
 import type { PlayerId, WorldState } from "./types.js";
 
 type ClientsMap = Map<WebSocket, PlayerId>;
@@ -51,6 +52,30 @@ export function handleConnection(
 
       const unit = spawnUnit(world, owner);
       console.log(`spawn: owner=${owner}, unitId=${unit.id}, x=${unit.x}`);
+      return;
+    }
+
+    const placeBuildingResult = getPlaceBuildingPayload(message);
+    if (placeBuildingResult.ok) {
+      const owner = clients.get(socket);
+      if (!owner) {
+        socket.send(JSON.stringify({ type: "error", reason: "must_join_before_place_building" }));
+        return;
+      }
+
+      const { x, y, creatureId } = placeBuildingResult.payload;
+      const result = placeBuilding(world, owner, x, y, creatureId as CreatureId);
+      if (!result.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: result.reason }));
+        return;
+      }
+
+      console.log(`place_building: owner=${owner}, id=${result.building.id}, x=${x}, y=${y}`);
+      return;
+    }
+
+    if (message.type === "place_building" && !placeBuildingResult.ok) {
+      socket.send(JSON.stringify({ type: "error", reason: placeBuildingResult.reason }));
       return;
     }
 
