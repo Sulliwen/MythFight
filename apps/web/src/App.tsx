@@ -10,7 +10,7 @@ import { VictoryOverlay } from "./components/victory/VictoryOverlay";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
-import type { CreatureId, PlayerId } from "./types";
+import type { CreatureId, PlayerId, SelectionTarget } from "./types";
 
 type MatchOutcome = PlayerId | "draw" | null;
 
@@ -34,6 +34,7 @@ function App() {
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
   const [buildMode, setBuildMode] = useState<BuildMode>({ active: false, creatureId: "golem" });
+  const [selection, setSelection] = useState<SelectionTarget>(null);
 
   const { installPromptAvailable, promptInstall, showIosInstallHint } = usePwaInstall();
   const { needRefresh, offlineReady, refreshApplication } = usePwaRuntime();
@@ -102,6 +103,7 @@ function App() {
     sendNewGame();
     setDismissedRoundId(roundId);
     setMenuVisible(false);
+    setSelection(null);
   };
 
   const handleOpenMenu = () => {
@@ -134,6 +136,7 @@ function App() {
           showGameAreaDebug={showGameAreaDebug}
           buildMode={buildMode}
           onPlaceBuilding={handlePlaceBuilding}
+          onSelect={setSelection}
           controlledPlayer={controlledPlayer}
         />
       </section>
@@ -217,6 +220,9 @@ function App() {
           buildModeActive={buildMode.active}
           onToggleBuildMode={toggleBuildMode}
           disabled={status !== "connected"}
+          selection={selection}
+          snapshots={snapshots}
+          controlledPlayer={controlledPlayer}
         />
 
         {debugPanelVisible && (

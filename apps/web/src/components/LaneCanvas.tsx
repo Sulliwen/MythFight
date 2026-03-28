@@ -14,6 +14,7 @@ export function LaneCanvas({
   showGameAreaDebug = true,
   buildMode = DEFAULT_BUILD_MODE,
   onPlaceBuilding,
+  onSelect,
   controlledPlayer = "player1",
 }: LaneCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -24,6 +25,7 @@ export function LaneCanvas({
   const showGameAreaDebugRef = useRef(showGameAreaDebug);
   const buildModeRef = useRef(buildMode);
   const onPlaceBuildingRef = useRef(onPlaceBuilding);
+  const onSelectRef = useRef(onSelect);
   const controlledPlayerRef = useRef(controlledPlayer);
 
   useEffect(() => {
@@ -55,6 +57,10 @@ export function LaneCanvas({
   }, [onPlaceBuilding]);
 
   useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
     controlledPlayerRef.current = controlledPlayer;
   }, [controlledPlayer]);
 
@@ -71,6 +77,7 @@ export function LaneCanvas({
       showGameAreaDebugRef,
       buildModeRef,
       onPlaceBuildingRef,
+      onSelectRef,
       controlledPlayerRef,
     });
   }, []);

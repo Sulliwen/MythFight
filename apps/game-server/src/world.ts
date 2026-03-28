@@ -14,8 +14,8 @@ export function createWorld(): WorldState {
     nextUnitId: 1,
     nextBuildingId: 1,
     castle: {
-      player1: 100,
-      player2: 100,
+      player1: 1000,
+      player2: 1000,
     },
     units: [],
     buildings: [],

@@ -55,3 +55,9 @@ export type PongMsg = {
 };
 
 export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;
+
+export type SelectionTarget =
+  | { kind: "castle"; owner: PlayerId }
+  | { kind: "building"; id: string }
+  | { kind: "unit"; id: string }
+  | null;

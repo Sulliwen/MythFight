@@ -1,6 +1,6 @@
 import type { AnimatedSprite } from "pixi.js";
 import type { MutableRefObject } from "react";
-import type { CreatureId, PlayerId, SnapshotMsg, Unit } from "../../types";
+import type { CreatureId, PlayerId, SelectionTarget, SnapshotMsg, Unit } from "../../types";
 
 export type BuildMode = {
   active: boolean;
@@ -15,6 +15,7 @@ export type LaneCanvasProps = {
   showGameAreaDebug?: boolean;
   buildMode?: BuildMode;
   onPlaceBuilding?: (worldX: number, worldY: number, creatureId: CreatureId) => void;
+  onSelect?: (target: SelectionTarget) => void;
   controlledPlayer?: PlayerId;
 };
 
@@ -26,6 +27,7 @@ export type LaneCanvasStateRefs = {
   showGameAreaDebugRef: MutableRefObject<boolean>;
   buildModeRef: MutableRefObject<BuildMode>;
   onPlaceBuildingRef: MutableRefObject<((worldX: number, worldY: number, creatureId: CreatureId) => void) | undefined>;
+  onSelectRef: MutableRefObject<((target: SelectionTarget) => void) | undefined>;
   controlledPlayerRef: MutableRefObject<PlayerId>;
 };
 
@@ -70,6 +72,8 @@ export type ProjectedBuilding = {
   y: number;
   hp: number;
   maxHp: number;
+  spriteWidth: number;
+  spriteHeight: number;
 };
 
 export type UnitAnimationMode = "walk" | "attack" | "idle";

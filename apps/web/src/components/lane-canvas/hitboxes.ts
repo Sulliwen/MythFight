@@ -1,5 +1,5 @@
 import type { Graphics } from "pixi.js";
-import type { ProjectedUnit } from "./types";
+import type { ProjectedBuilding, ProjectedUnit } from "./types";
 
 const HITBOX_COLOR = 0xff0000;
 const CASTLE_HITBOX_INSET_PX = 3;
@@ -39,6 +39,7 @@ type SceneHitboxInput = {
       height: number;
     };
   };
+  buildings: ProjectedBuilding[];
   units: ProjectedUnit[];
   unitHitboxRadius: number;
 };
@@ -58,7 +59,7 @@ function insetRect(
 }
 
 export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
-  const { castles, units, unitHitboxRadius } = input;
+  const { castles, buildings, units, unitHitboxRadius } = input;
   const castlePlayer1Rect = insetRect(castles.player1, CASTLE_HITBOX_INSET_PX);
   const castlePlayer2Rect = insetRect(castles.player2, CASTLE_HITBOX_INSET_PX);
 
@@ -80,6 +81,19 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     height: castlePlayer2Rect.height,
   };
 
+  const buildingHitboxes: RectHitbox[] = buildings.map((b) => {
+    const w = b.spriteWidth;
+    const h = b.spriteHeight;
+    return {
+      kind: "rect",
+      id: `building-${b.id}`,
+      x: b.x - w * 0.5,
+      y: b.y - h * 0.9,
+      width: w,
+      height: h,
+    };
+  });
+
   const unitHitboxes: CircleHitbox[] = units.map((unit) => ({
     kind: "circle",
     id: `unit-${unit.id}`,
@@ -88,7 +102,21 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     radius: unitHitboxRadius,
   }));
 
-  return [castlePlayer1Hitbox, castlePlayer2Hitbox, ...unitHitboxes];
+  return [castlePlayer1Hitbox, castlePlayer2Hitbox, ...buildingHitboxes, ...unitHitboxes];
+}
+
+export function hitTest(x: number, y: number, hitboxes: GameHitbox[]): GameHitbox | null {
+  for (let i = hitboxes.length - 1; i >= 0; i--) {
+    const hb = hitboxes[i];
+    if (hb.kind === "rect") {
+      if (x >= hb.x && x <= hb.x + hb.width && y >= hb.y && y <= hb.y + hb.height) return hb;
+    } else {
+      const dx = x - hb.x;
+      const dy = y - hb.y;
+      if (dx * dx + dy * dy <= hb.radius * hb.radius) return hb;
+    }
+  }
+  return null;
 }
 
 export function drawHitboxOverlay(graphics: Graphics, hitboxes: GameHitbox[]): void {

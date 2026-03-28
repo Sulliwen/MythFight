@@ -12,7 +12,7 @@ import {
   WORLD_MIN_Y,
 } from "./constants";
 import { BuildingSpriteLayer } from "./building-sprite-layer";
-import { defineGameHitboxes, drawHitboxOverlay } from "./hitboxes";
+import { defineGameHitboxes, drawHitboxOverlay, hitTest, type GameHitbox } from "./hitboxes";
 import { drawImageOutlines } from "./image-outlines";
 import { getInterpolationPair, interpolateUnits } from "./interpolation";
 import { clamp, getCanvasSize } from "./math";
@@ -100,8 +100,10 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     showGameAreaDebugRef,
     buildModeRef,
     onPlaceBuildingRef,
+    onSelectRef,
     controlledPlayerRef,
   } = bindings;
+  let currentHitboxes: GameHitbox[] = [];
   let castlePlayer1TrimRatios: TextureTrimRatios = NO_TRIM;
   let castlePlayer2TrimRatios: TextureTrimRatios = NO_TRIM;
 
@@ -144,7 +146,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return;
-    if (!buildModeRef.current.active) return;
 
     const canvas = app?.canvas;
     if (!canvas) return;
@@ -152,13 +153,30 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const sx = event.clientX - rect.left;
     const sy = event.clientY - rect.top;
 
-    const { worldX, worldY } = screenToWorld(
-      sx, sy,
-      currentGameArea.x, currentGameArea.y,
-      currentGameArea.width, currentGameArea.height,
-    );
+    if (buildModeRef.current.active) {
+      const { worldX, worldY } = screenToWorld(
+        sx, sy,
+        currentGameArea.x, currentGameArea.y,
+        currentGameArea.width, currentGameArea.height,
+      );
+      onPlaceBuildingRef.current?.(worldX, worldY, buildModeRef.current.creatureId);
+      return;
+    }
 
-    onPlaceBuildingRef.current?.(worldX, worldY, buildModeRef.current.creatureId);
+    // Selection mode
+    const hit = hitTest(sx, sy, currentHitboxes);
+    if (!hit) {
+      onSelectRef.current?.(null);
+      return;
+    }
+    if (hit.id.startsWith("castle-")) {
+      const owner = hit.id.replace("castle-", "") as "player1" | "player2";
+      onSelectRef.current?.({ kind: "castle", owner });
+    } else if (hit.id.startsWith("building-")) {
+      onSelectRef.current?.({ kind: "building", id: hit.id.replace("building-", "") });
+    } else if (hit.id.startsWith("unit-")) {
+      onSelectRef.current?.({ kind: "unit", id: hit.id.replace("unit-", "") });
+    }
   };
 
   const renderFrame = () => {
@@ -239,7 +257,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     castlePlayer2Sprite.height = castleHeight;
 
     // Draw castle HP bars
-    const CASTLE_HP_MAX = 100;
+    const CASTLE_HP_MAX = 1000;
     const CASTLE_HP_BAR_W = 60;
     const CASTLE_HP_BAR_H = 6;
     const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
@@ -279,7 +297,9 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       const latestSnapshot = pair.b;
       projectedBuildings = (latestSnapshot.buildings ?? []).map((b) => {
         const { screenX, screenY } = worldToScreen(b.x, b.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY, hp: b.hp, maxHp: b.maxHp };
+        const tw = ghostTexture ? ghostTexture.width * buildingScale : 0;
+        const th = ghostTexture ? ghostTexture.height * buildingScale : 0;
+        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY, hp: b.hp, maxHp: b.maxHp, spriteWidth: tw, spriteHeight: th };
       });
       buildingSpriteLayer.renderBuildings(projectedBuildings, buildingScale);
     } else {
@@ -358,6 +378,12 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     if (showImageOutlineDebugRef.current) {
+      const buildingOutlines = projectedBuildings.map((b) => ({
+        x: b.x - b.spriteWidth * 0.5,
+        y: b.y - b.spriteHeight * 0.9,
+        width: b.spriteWidth,
+        height: b.spriteHeight,
+      }));
       drawImageOutlines(imageOutlineGraphics, [
         {
           x: castlePlayer1OpaqueX,
@@ -371,31 +397,34 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
           width: castlePlayer2OpaqueWidth,
           height: castlePlayer2OpaqueHeight,
         },
+        ...buildingOutlines,
       ]);
     } else {
       imageOutlineGraphics.clear();
     }
 
-    if (showHitboxDebugRef.current) {
-      const hitboxes = defineGameHitboxes({
-        castles: {
-          player1: {
-            x: castlePlayer1OpaqueX,
-            y: castlePlayer1OpaqueY,
-            width: castlePlayer1OpaqueWidth,
-            height: castlePlayer1OpaqueHeight,
-          },
-          player2: {
-            x: castlePlayer2OpaqueX,
-            y: castlePlayer2OpaqueY,
-            width: castlePlayer2OpaqueWidth,
-            height: castlePlayer2OpaqueHeight,
-          },
+    currentHitboxes = defineGameHitboxes({
+      castles: {
+        player1: {
+          x: castlePlayer1OpaqueX,
+          y: castlePlayer1OpaqueY,
+          width: castlePlayer1OpaqueWidth,
+          height: castlePlayer1OpaqueHeight,
         },
-        units: projectedUnits,
-        unitHitboxRadius: laneHeight * 0.24,
-      });
-      drawHitboxOverlay(hitboxGraphics, hitboxes);
+        player2: {
+          x: castlePlayer2OpaqueX,
+          y: castlePlayer2OpaqueY,
+          width: castlePlayer2OpaqueWidth,
+          height: castlePlayer2OpaqueHeight,
+        },
+      },
+      buildings: projectedBuildings,
+      units: projectedUnits,
+      unitHitboxRadius: laneHeight * 0.24,
+    });
+
+    if (showHitboxDebugRef.current) {
+      drawHitboxOverlay(hitboxGraphics, currentHitboxes);
     } else {
       hitboxGraphics.clear();
     }
