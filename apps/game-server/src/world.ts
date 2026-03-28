@@ -51,7 +51,8 @@ export function placeBuilding(
   creatureId: CreatureId = DEFAULT_CREATURE_ID,
 ): PlaceBuildingResult {
   const stats = getBuildingStats(creatureId);
-  const r = stats.hitboxRadius;
+  const hw = stats.hitboxWidth / 2;
+  const hh = stats.hitboxHeight / 2;
 
   // Must place on own side
   const midX = (LANE_MIN_X + LANE_MAX_X) / 2;
@@ -62,18 +63,22 @@ export function placeBuilding(
     return { ok: false, reason: "must_place_on_own_side" };
   }
 
-  // Must be within bounds (with hitbox margin)
-  if (x - r < LANE_MIN_X || x + r > LANE_MAX_X || y - r < LANE_MIN_Y || y + r > LANE_MAX_Y) {
+  // Must be within bounds
+  if (x - hw < LANE_MIN_X || x + hw > LANE_MAX_X || y - hh < LANE_MIN_Y || y + hh > LANE_MAX_Y) {
     return { ok: false, reason: "out_of_bounds" };
   }
 
-  // Must not overlap existing buildings
+  // Must not overlap existing buildings (AABB collision)
   for (const existing of world.buildings) {
-    const existingR = getBuildingStats(existing.creatureId).hitboxRadius;
-    const dx = x - existing.x;
-    const dy = y - existing.y;
-    const minDist = r + existingR;
-    if (dx * dx + dy * dy < minDist * minDist) {
+    const eStats = getBuildingStats(existing.creatureId);
+    const eHw = eStats.hitboxWidth / 2;
+    const eHh = eStats.hitboxHeight / 2;
+    if (
+      x - hw < existing.x + eHw &&
+      x + hw > existing.x - eHw &&
+      y - hh < existing.y + eHh &&
+      y + hh > existing.y - eHh
+    ) {
       return { ok: false, reason: "overlaps_existing_building" };
     }
   }
@@ -86,6 +91,8 @@ export function placeBuilding(
     y,
     hp: stats.hp,
     maxHp: stats.hp,
+    spawnTicksRemaining: stats.spawnIntervalTicks,
+    spawnIntervalTicks: stats.spawnIntervalTicks,
   };
   world.buildings.push(building);
   return { ok: true, building };
@@ -95,30 +102,23 @@ type SpawnUnitResult =
   | { ok: true; unit: Unit }
   | { ok: false; reason: string };
 
-export function spawnUnit(world: WorldState, owner: PlayerId, creatureId: CreatureId = DEFAULT_CREATURE_ID): SpawnUnitResult {
-  // Find the first building of the matching creature type owned by this player
-  const building = world.buildings.find((b) => b.owner === owner && b.creatureId === creatureId);
-  if (!building) {
-    return { ok: false, reason: "no_building" };
-  }
-
-  const creatureStats = getCreatureStats(creatureId);
+function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
+  const creatureStats = getCreatureStats(building.creatureId);
   const speed = creatureStats.moveSpeedPerTick;
 
-  // Target is the enemy castle
-  const targetX = owner === "player1" ? CASTLE_PLAYER2_X : CASTLE_PLAYER1_X;
-  const targetY = owner === "player1" ? CASTLE_PLAYER2_Y : CASTLE_PLAYER1_Y;
+  const targetX = building.owner === "player1" ? CASTLE_PLAYER2_X : CASTLE_PLAYER1_X;
+  const targetY = building.owner === "player1" ? CASTLE_PLAYER2_Y : CASTLE_PLAYER1_Y;
 
   const dx = targetX - building.x;
   const dy = targetY - building.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const nx = dist > 0 ? dx / dist : (owner === "player1" ? 1 : -1);
+  const nx = dist > 0 ? dx / dist : (building.owner === "player1" ? 1 : -1);
   const ny = dist > 0 ? dy / dist : 0;
 
   const unit: Unit = {
     id: `u${world.nextUnitId++}`,
-    creatureId,
-    owner,
+    creatureId: building.creatureId,
+    owner: building.owner,
     x: building.x,
     y: building.y,
     vx: nx * speed,
@@ -128,11 +128,30 @@ export function spawnUnit(world: WorldState, owner: PlayerId, creatureId: Creatu
     attackCycleStartTick: 0,
   };
   world.units.push(unit);
+  return unit;
+}
+
+export function spawnUnit(world: WorldState, owner: PlayerId, creatureId: CreatureId = DEFAULT_CREATURE_ID): SpawnUnitResult {
+  const building = world.buildings.find((b) => b.owner === owner && b.creatureId === creatureId);
+  if (!building) {
+    return { ok: false, reason: "no_building" };
+  }
+  const unit = spawnUnitFromBuilding(world, building);
   return { ok: true, unit };
 }
 
 export function stepWorld(world: WorldState): void {
   world.tick += 1;
+
+  // Auto-spawn: each building produces units on a timer
+  for (const building of world.buildings) {
+    building.spawnTicksRemaining -= 1;
+    if (building.spawnTicksRemaining <= 0) {
+      const stats = getBuildingStats(building.creatureId);
+      spawnUnitFromBuilding(world, building);
+      building.spawnTicksRemaining = stats.spawnIntervalTicks;
+    }
+  }
 
   for (const unit of world.units) {
     const creatureStats = getCreatureStats(unit.creatureId);
@@ -215,6 +234,8 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
       y: b.y,
       hp: b.hp,
       maxHp: b.maxHp,
+      spawnTicksRemaining: b.spawnTicksRemaining,
+      spawnIntervalTicks: b.spawnIntervalTicks,
     })),
   };
 }

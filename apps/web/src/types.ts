@@ -10,6 +10,8 @@ export type BuildingSnapshot = {
   y: number;
   hp: number;
   maxHp: number;
+  spawnTicksRemaining: number;
+  spawnIntervalTicks: number;
 };
 
 export type Unit = {

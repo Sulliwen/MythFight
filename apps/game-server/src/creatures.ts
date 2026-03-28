@@ -13,13 +13,17 @@ export type CreatureStats = {
 
 export type BuildingStats = {
   hp: number;
-  hitboxRadius: number;
+  hitboxWidth: number;
+  hitboxHeight: number;
+  spawnIntervalTicks: number;
 };
 
 const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
   golem: {
     hp: 200,
-    hitboxRadius: 40,
+    hitboxWidth: 60,
+    hitboxHeight: 60,
+    spawnIntervalTicks: 100, // 5 seconds at 20 TPS
   },
 };
 

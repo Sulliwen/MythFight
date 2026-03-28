@@ -45,12 +45,32 @@ function CastleInfo({ owner, hp }: { owner: string; hp: number }) {
   );
 }
 
-function BuildingInfo({ building }: { building: { creatureId: string; hp: number; maxHp: number; owner: string } }) {
+function SpawnProgress({ remaining, total }: { remaining: number; total: number }) {
+  const elapsed = total - remaining;
+  const ratio = total > 0 ? Math.max(0, Math.min(1, elapsed / total)) : 0;
+  const pct = Math.round(ratio * 100);
+  const seconds = (remaining / 20).toFixed(1);
+  return (
+    <div className="cmd-bar__stat-row">
+      <span className="cmd-bar__stat-label">Spawn</span>
+      <div className="cmd-bar__stat-bar">
+        <div
+          className="cmd-bar__stat-bar-fill cmd-bar__stat-bar-fill--spawn"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="cmd-bar__stat-value">{seconds}s</span>
+    </div>
+  );
+}
+
+function BuildingInfo({ building }: { building: { creatureId: string; hp: number; maxHp: number; owner: string; spawnTicksRemaining: number; spawnIntervalTicks: number } }) {
   const ownerLabel = building.owner === "player1" ? "J1" : "J2";
   return (
     <div className="cmd-bar__info">
       <strong className="cmd-bar__info-title">Golem House ({ownerLabel})</strong>
       <HpBar hp={building.hp} maxHp={building.maxHp} label="PV" />
+      <SpawnProgress remaining={building.spawnTicksRemaining} total={building.spawnIntervalTicks} />
     </div>
   );
 }

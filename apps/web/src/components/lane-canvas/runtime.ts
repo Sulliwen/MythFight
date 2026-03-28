@@ -50,7 +50,9 @@ function projectUnits(
     .sort((left, right) => left.y - right.y);
 }
 
-const BUILDING_HITBOX_RADIUS = 40; // must match server BuildingStats
+// Must match server BuildingStats for golem
+const BUILDING_HITBOX_W = 60;
+const BUILDING_HITBOX_H = 60;
 
 // Convert screen coordinates to world coordinates, clamping to valid building placement bounds
 function screenToWorld(
@@ -63,14 +65,36 @@ function screenToWorld(
 ): { worldX: number; worldY: number } {
   const rawX = WORLD_MIN_X + ((screenX - gameAreaX) / gameAreaWidth) * (WORLD_MAX_X - WORLD_MIN_X);
   const rawY = WORLD_MIN_Y + ((screenY - gameAreaY) / gameAreaHeight) * (WORLD_MAX_Y - WORLD_MIN_Y);
-  const worldX = clamp(rawX, WORLD_MIN_X + BUILDING_HITBOX_RADIUS, WORLD_MAX_X - BUILDING_HITBOX_RADIUS);
-  const worldY = clamp(rawY, WORLD_MIN_Y + BUILDING_HITBOX_RADIUS, WORLD_MAX_Y - BUILDING_HITBOX_RADIUS);
+  const worldX = clamp(rawX, WORLD_MIN_X + BUILDING_HITBOX_W / 2, WORLD_MAX_X - BUILDING_HITBOX_W / 2);
+  const worldY = clamp(rawY, WORLD_MIN_Y + BUILDING_HITBOX_H / 2, WORLD_MAX_Y - BUILDING_HITBOX_H / 2);
   return { worldX, worldY };
 }
 
-function isValidBuildingPlacement(worldX: number, player: "player1" | "player2"): boolean {
+function isValidBuildingPlacement(
+  worldX: number,
+  worldY: number,
+  player: "player1" | "player2",
+  existingBuildings: { x: number; y: number }[],
+): boolean {
+  // Must be on own side
   const midX = (WORLD_MIN_X + WORLD_MAX_X) / 2;
-  return player === "player1" ? worldX <= midX : worldX >= midX;
+  if (player === "player1" ? worldX > midX : worldX < midX) return false;
+
+  // Must not overlap existing buildings (AABB collision)
+  const hw = BUILDING_HITBOX_W / 2;
+  const hh = BUILDING_HITBOX_H / 2;
+  for (const b of existingBuildings) {
+    const eHw = BUILDING_HITBOX_W / 2;
+    const eHh = BUILDING_HITBOX_H / 2;
+    if (
+      worldX - hw < b.x + eHw &&
+      worldX + hw > b.x - eHw &&
+      worldY - hh < b.y + eHh &&
+      worldY + hh > b.y - eHh
+    ) return false;
+  }
+
+  return true;
 }
 
 // Convert world coordinates to screen coordinates
@@ -313,8 +337,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         ghostSprite.position.set(snappedX, snappedY);
         ghostSprite.scale.set(buildingScale);
 
-        const valid = isValidBuildingPlacement(worldX, controlledPlayerRef.current);
-        ghostSprite.tint = valid ? 0x44ff44 : 0xff4444;
+        const existingWorldBuildings = pair
+          ? (pair.b.buildings ?? []).map((b) => ({ x: b.x, y: b.y }))
+          : [];
+        const valid = isValidBuildingPlacement(worldX, worldY, controlledPlayerRef.current, existingWorldBuildings);
+        ghostSprite.tint = valid ? 0xffffff : 0xff4444;
         ghostSprite.alpha = 0.6;
       } else {
         ghostSprite.visible = false;
