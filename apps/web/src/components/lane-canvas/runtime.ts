@@ -4,8 +4,6 @@ import {
   CASTLE_PLAYER2_TEXTURE_URL,
   GOLEM_HOUSE_TEXTURE_URL,
   INTERPOLATION_DELAY_MS,
-  PLAYER1_LANE_OFFSET_RATIO,
-  PLAYER2_LANE_OFFSET_RATIO,
   WORLD_MAX_X,
   WORLD_MAX_Y,
   WORLD_MIN_X,
@@ -26,18 +24,17 @@ const CASTLE_TRIM_OPTIONS: TextureTrimOptions = {
   paddingPx: 1,
 };
 
-function projectUnitsToLane(
+function projectUnits(
   snapshotsUnits: ReturnType<typeof interpolateUnits>,
-  laneStartX: number,
-  laneEndX: number,
-  laneCenterY: number,
-  laneHeight: number
+  gameAreaX: number,
+  gameAreaY: number,
+  gameAreaWidth: number,
+  gameAreaHeight: number,
 ): ProjectedUnit[] {
   return snapshotsUnits
     .map((unit) => {
-      const progress = clamp((unit.x - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X), 0, 1);
-      const x = laneStartX + progress * (laneEndX - laneStartX);
-      const y = laneCenterY + laneHeight * (unit.owner === "player1" ? PLAYER1_LANE_OFFSET_RATIO : PLAYER2_LANE_OFFSET_RATIO);
+      const x = gameAreaX + ((unit.x - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
+      const y = gameAreaY + ((unit.y - WORLD_MIN_Y) / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
       return {
         id: unit.id,
         owner: unit.owner,
@@ -195,8 +192,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const width = app.screen.width;
     const height = app.screen.height;
 
-    const laneCenterY = height * 0.62;
-    const laneHeight = clamp(height * 0.13, 52, 120);
     const castleHeight = clamp(height * 0.3, 92, 216);
     const castleWidthP1 = castlePlayer1Sprite.texture.width > 0
       ? (castlePlayer1Sprite.texture.width / castlePlayer1Sprite.texture.height) * castleHeight
@@ -209,10 +204,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const castleMargin = 8;
     const leftCastleX = castleWidthP1 * 0.5 + castleMargin;
     const rightCastleX = width - castleWidthP2 * 0.5 - castleMargin;
-
-    // Lane spans between the opaque inner edges of each castle
-    const laneLeftX = leftCastleX + castleWidthP1 * (0.5 - castlePlayer1TrimRatios.right);
-    const laneRightX = rightCastleX - castleWidthP2 * (0.5 - castlePlayer2TrimRatios.left);
 
     // Center castles vertically on screen (anchor is 0.5, 1 so base = center + half opaque height)
     const castleOpaqueHeightP1 = castleHeight * (1 - castlePlayer1TrimRatios.top - castlePlayer1TrimRatios.bottom);
@@ -290,7 +281,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     // Render buildings from snapshot
-    const buildingScale = clamp((laneHeight * 0.6) / 256, 0.05, 0.3);
+    const buildingScale = clamp((gameAreaHeight * 0.08) / 256, 0.05, 0.3);
 
     let projectedBuildings: ProjectedBuilding[] = [];
     if (pair) {
@@ -366,11 +357,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     let projectedUnits: ProjectedUnit[] = [];
     if (pair) {
       const interpolatedUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
-      projectedUnits = projectUnitsToLane(interpolatedUnits, laneLeftX, laneRightX, laneCenterY, laneHeight);
+      projectedUnits = projectUnits(interpolatedUnits, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
 
       const referenceFrameHeight = unitSpriteLayer.getReferenceFrameHeight();
-      const golemScale = clamp((laneHeight * 0.78) / referenceFrameHeight, 0.08, 0.24);
-      const unitYOffset = laneHeight * 0.1;
+      const golemScale = clamp((gameAreaHeight * 0.10) / referenceFrameHeight, 0.08, 0.24);
+      const unitYOffset = 0;
 
       unitSpriteLayer.renderUnits(projectedUnits, golemScale, unitYOffset);
     } else {
@@ -420,7 +411,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       },
       buildings: projectedBuildings,
       units: projectedUnits,
-      unitHitboxRadius: laneHeight * 0.24,
+      unitHitboxRadius: gameAreaHeight * 0.03,
     });
 
     if (showHitboxDebugRef.current) {

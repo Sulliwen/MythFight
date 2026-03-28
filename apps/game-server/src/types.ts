@@ -25,7 +25,9 @@ export type UnitSnapshot = {
   creatureId: CreatureId;
   owner: PlayerId;
   x: number;
+  y: number;
   vx: number;
+  vy: number;
   hp: number;
   state: UnitState;
   attackCycleTick?: number;

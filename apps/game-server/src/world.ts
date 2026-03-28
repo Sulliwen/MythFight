@@ -8,6 +8,13 @@ export const LANE_MAX_X = 1000;
 export const LANE_MIN_Y = 0;
 export const LANE_MAX_Y = 300;
 
+// Fixed castle world positions
+export const CASTLE_PLAYER1_X = 20;
+export const CASTLE_PLAYER1_Y = 150;
+export const CASTLE_PLAYER2_X = 980;
+export const CASTLE_PLAYER2_Y = 150;
+export const CASTLE_ATTACK_RADIUS = 30;
+
 export function createWorld(): WorldState {
   return {
     tick: 0,
@@ -26,8 +33,8 @@ export function resetWorld(world: WorldState): void {
   world.tick = 0;
   world.nextUnitId = 1;
   world.nextBuildingId = 1;
-  world.castle.player1 = 100;
-  world.castle.player2 = 100;
+  world.castle.player1 = 1000;
+  world.castle.player2 = 1000;
   world.units = [];
   world.buildings = [];
 }
@@ -84,39 +91,44 @@ export function placeBuilding(
   return { ok: true, building };
 }
 
-function createUnit(owner: PlayerId, id: number, creatureId: CreatureId): Unit {
-  const creatureStats = getCreatureStats(creatureId);
-  const speedPerTick = creatureStats.moveSpeedPerTick;
+type SpawnUnitResult =
+  | { ok: true; unit: Unit }
+  | { ok: false; reason: string };
 
-  if (owner === "player1") {
-    return {
-      id: `u${id}`,
-      creatureId,
-      owner,
-      x: LANE_MIN_X + 20,
-      vx: +speedPerTick,
-      hp: creatureStats.hp,
-      state: "moving",
-      attackCycleStartTick: 0,
-    };
+export function spawnUnit(world: WorldState, owner: PlayerId, creatureId: CreatureId = DEFAULT_CREATURE_ID): SpawnUnitResult {
+  // Find the first building of the matching creature type owned by this player
+  const building = world.buildings.find((b) => b.owner === owner && b.creatureId === creatureId);
+  if (!building) {
+    return { ok: false, reason: "no_building" };
   }
 
-  return {
-    id: `u${id}`,
+  const creatureStats = getCreatureStats(creatureId);
+  const speed = creatureStats.moveSpeedPerTick;
+
+  // Target is the enemy castle
+  const targetX = owner === "player1" ? CASTLE_PLAYER2_X : CASTLE_PLAYER1_X;
+  const targetY = owner === "player1" ? CASTLE_PLAYER2_Y : CASTLE_PLAYER1_Y;
+
+  const dx = targetX - building.x;
+  const dy = targetY - building.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const nx = dist > 0 ? dx / dist : (owner === "player1" ? 1 : -1);
+  const ny = dist > 0 ? dy / dist : 0;
+
+  const unit: Unit = {
+    id: `u${world.nextUnitId++}`,
     creatureId,
     owner,
-    x: LANE_MAX_X - 20,
-    vx: -speedPerTick,
+    x: building.x,
+    y: building.y,
+    vx: nx * speed,
+    vy: ny * speed,
     hp: creatureStats.hp,
     state: "moving",
     attackCycleStartTick: 0,
   };
-}
-
-export function spawnUnit(world: WorldState, owner: PlayerId, creatureId: CreatureId = DEFAULT_CREATURE_ID): Unit {
-  const unit = createUnit(owner, world.nextUnitId++, creatureId);
   world.units.push(unit);
-  return unit;
+  return { ok: true, unit };
 }
 
 export function stepWorld(world: WorldState): void {
@@ -127,15 +139,24 @@ export function stepWorld(world: WorldState): void {
 
     if (unit.state === "moving") {
       unit.x += unit.vx;
+      unit.y += unit.vy;
 
-      if (unit.owner === "player1" && unit.x >= LANE_MAX_X) {
-        unit.x = LANE_MAX_X - creatureStats.castleAttackPositionOffset;
+      // Check distance to enemy castle
+      const targetX = unit.owner === "player1" ? CASTLE_PLAYER2_X : CASTLE_PLAYER1_X;
+      const targetY = unit.owner === "player1" ? CASTLE_PLAYER2_Y : CASTLE_PLAYER1_Y;
+      const dx = unit.x - targetX;
+      const dy = unit.y - targetY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq <= CASTLE_ATTACK_RADIUS * CASTLE_ATTACK_RADIUS) {
+        // Stop at attack offset distance from castle
+        const dist = Math.sqrt(distSq);
+        if (dist > 0) {
+          unit.x = targetX + (dx / dist) * creatureStats.castleAttackPositionOffset;
+          unit.y = targetY + (dy / dist) * creatureStats.castleAttackPositionOffset;
+        }
         unit.vx = 0;
-        unit.state = "attacking";
-        unit.attackCycleStartTick = world.tick;
-      } else if (unit.owner === "player2" && unit.x <= LANE_MIN_X) {
-        unit.x = LANE_MIN_X + creatureStats.castleAttackPositionOffset;
-        unit.vx = 0;
+        unit.vy = 0;
         unit.state = "attacking";
         unit.attackCycleStartTick = world.tick;
       }
@@ -176,7 +197,9 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
         creatureId: u.creatureId,
         owner: u.owner,
         x: u.x,
+        y: u.y,
         vx: u.vx,
+        vy: u.vy,
         hp: u.hp,
         state: u.state,
         attackCycleTick,

@@ -50,8 +50,12 @@ export function handleConnection(
         return;
       }
 
-      const unit = spawnUnit(world, owner);
-      console.log(`spawn: owner=${owner}, unitId=${unit.id}, x=${unit.x}`);
+      const result = spawnUnit(world, owner);
+      if (!result.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: result.reason }));
+        return;
+      }
+      console.log(`spawn: owner=${owner}, unitId=${result.unit.id}, x=${result.unit.x}, y=${result.unit.y}`);
       return;
     }
 

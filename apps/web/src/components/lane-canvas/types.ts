@@ -45,6 +45,7 @@ export type InterpolatedUnit = {
   id: string;
   owner: PlayerId;
   x: number;
+  y: number;
   vx: number;
   state: Unit["state"];
   attackCycleTick?: number;
