@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
+import { CommandBar } from "./components/CommandBar";
 import { Hud } from "./components/Hud";
 import { LaneCanvas } from "./components/LaneCanvas";
 import type { BuildMode } from "./components/lane-canvas/types";
 import { MenuOverlay } from "./components/menu/MenuOverlay";
-import { PlayerUi } from "./components/PlayerUi";
 import { SpawnButton } from "./components/SpawnButton";
 import { VictoryOverlay } from "./components/victory/VictoryOverlay";
 import { useGameSocket } from "./hooks/useGameSocket";
@@ -95,7 +95,6 @@ function App() {
 
   const showServerUnavailable = status === "closed" || status === "error";
   const nextControlledPlayer: PlayerId = controlledPlayer === "player1" ? "player2" : "player1";
-  const playerGold = { player1: 0, player2: 0 };
   const matchOutcome = getMatchOutcome(displayCastleHp);
   const showVictoryOverlay = matchOutcome !== null && dismissedRoundId !== roundId && !menuVisible;
 
@@ -144,12 +143,6 @@ function App() {
           <div className="app-title">MythFight POC</div>
 
           <div className="action-dock">
-            <SpawnButton
-              className={`action-btn ${buildMode.active ? "action-btn--build-on" : ""}`}
-              onSpawn={toggleBuildMode}
-              disabled={status !== "connected"}
-              label={buildMode.active ? "Annuler" : "Construire"}
-            />
             <SpawnButton className="action-btn" onSpawn={sendSpawn} disabled={status !== "connected"} />
             <SpawnButton
               className="action-btn action-btn--player"
@@ -218,7 +211,13 @@ function App() {
           )}
         </div>
 
-        <PlayerUi castleHp={displayCastleHp} gold={playerGold} controlledPlayer={controlledPlayer} />
+        <div className="hud-overlay__spacer" />
+
+        <CommandBar
+          buildModeActive={buildMode.active}
+          onToggleBuildMode={toggleBuildMode}
+          disabled={status !== "connected"}
+        />
 
         {debugPanelVisible && (
           <Hud

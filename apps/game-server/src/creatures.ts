@@ -12,11 +12,13 @@ export type CreatureStats = {
 };
 
 export type BuildingStats = {
+  hp: number;
   hitboxRadius: number;
 };
 
 const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
   golem: {
+    hp: 200,
     hitboxRadius: 40,
   },
 };

@@ -68,6 +68,8 @@ export type ProjectedBuilding = {
   creatureId: CreatureId;
   x: number;
   y: number;
+  hp: number;
+  maxHp: number;
 };
 
 export type UnitAnimationMode = "walk" | "attack" | "idle";

@@ -14,6 +14,8 @@ export type BuildingSnapshot = {
   creatureId: CreatureId;
   x: number;
   y: number;
+  hp: number;
+  maxHp: number;
 };
 
 export type Building = BuildingSnapshot;

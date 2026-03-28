@@ -117,6 +117,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let buildingSpriteLayer: BuildingSpriteLayer | null = null;
   let ghostSprite: Sprite | null = null;
   let ghostTexture: Texture | null = null;
+  let castleHpGraphics: Graphics | null = null;
   let buildZoneGraphics: Graphics | null = null;
   let gameAreaGraphics: Graphics | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -207,6 +208,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const gameAreaWidth = width;
     const gameAreaHeight = height;
     currentGameArea = { x: gameAreaX, y: gameAreaY, width: gameAreaWidth, height: gameAreaHeight };
+
     const castlePlayer1OpaqueX = leftCastleX - castleWidthP1 * 0.5 + castleWidthP1 * castlePlayer1TrimRatios.left;
     const castlePlayer1OpaqueY = castlesBaseYPlayer1 - castleHeight + castleHeight * castlePlayer1TrimRatios.top;
     const castlePlayer1OpaqueWidth = Math.max(
@@ -236,9 +238,40 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     castlePlayer2Sprite.width = castleWidthP2;
     castlePlayer2Sprite.height = castleHeight;
 
-    // Render buildings from snapshot
+    // Draw castle HP bars
+    const CASTLE_HP_MAX = 100;
+    const CASTLE_HP_BAR_W = 60;
+    const CASTLE_HP_BAR_H = 6;
     const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
     const pair = getInterpolationPair(snapshotsRef.current, renderTime);
+
+    if (castleHpGraphics) {
+      castleHpGraphics.clear();
+      if (pair) {
+        const castleHp = pair.b.castle;
+        const drawCastleHpBar = (cx: number, topY: number, hp: number) => {
+          const ratio = clamp(hp / CASTLE_HP_MAX, 0, 1);
+          const barX = cx - CASTLE_HP_BAR_W / 2;
+          const barY = topY - 12;
+          castleHpGraphics!.rect(barX, barY, CASTLE_HP_BAR_W, CASTLE_HP_BAR_H);
+          castleHpGraphics!.fill({ color: 0x1e293b, alpha: 0.8 });
+          const fillW = CASTLE_HP_BAR_W * ratio;
+          if (fillW > 0) {
+            const color = ratio > 0.6 ? 0x22c55e : ratio > 0.3 ? 0xf59e0b : 0xef4444;
+            castleHpGraphics!.rect(barX, barY, fillW, CASTLE_HP_BAR_H);
+            castleHpGraphics!.fill({ color, alpha: 0.9 });
+          }
+          castleHpGraphics!.rect(barX, barY, CASTLE_HP_BAR_W, CASTLE_HP_BAR_H);
+          castleHpGraphics!.stroke({ color: 0x475569, width: 1, alpha: 0.6 });
+        };
+        const castleTopY1 = castlesBaseYPlayer1 - castleHeight * (1 - castlePlayer1TrimRatios.top);
+        const castleTopY2 = castlesBaseYPlayer2 - castleHeight * (1 - castlePlayer2TrimRatios.top);
+        drawCastleHpBar(leftCastleX, castleTopY1, castleHp.player1);
+        drawCastleHpBar(rightCastleX, castleTopY2, castleHp.player2);
+      }
+    }
+
+    // Render buildings from snapshot
     const buildingScale = clamp((laneHeight * 0.6) / 256, 0.05, 0.3);
 
     let projectedBuildings: ProjectedBuilding[] = [];
@@ -246,7 +279,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       const latestSnapshot = pair.b;
       projectedBuildings = (latestSnapshot.buildings ?? []).map((b) => {
         const { screenX, screenY } = worldToScreen(b.x, b.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY };
+        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY, hp: b.hp, maxHp: b.maxHp };
       });
       buildingSpriteLayer.renderBuildings(projectedBuildings, buildingScale);
     } else {
@@ -436,12 +469,14 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     imageOutlineGraphics = new Graphics();
     hitboxGraphics = new Graphics();
+    castleHpGraphics = new Graphics();
     buildZoneGraphics = new Graphics();
     gameAreaGraphics = new Graphics();
 
     sceneContainer.addChild(gameAreaGraphics);
     sceneContainer.addChild(castlePlayer1Sprite);
     sceneContainer.addChild(castlePlayer2Sprite);
+    sceneContainer.addChild(castleHpGraphics);
     sceneContainer.addChild(buildZoneGraphics);
     sceneContainer.addChild(buildingContainer);
     sceneContainer.addChild(unitContainer);

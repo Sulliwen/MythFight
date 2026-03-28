@@ -77,6 +77,8 @@ export function placeBuilding(
     creatureId,
     x,
     y,
+    hp: stats.hp,
+    maxHp: stats.hp,
   };
   world.buildings.push(building);
   return { ok: true, building };
@@ -188,6 +190,8 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
       creatureId: b.creatureId,
       x: b.x,
       y: b.y,
+      hp: b.hp,
+      maxHp: b.maxHp,
     })),
   };
 }
