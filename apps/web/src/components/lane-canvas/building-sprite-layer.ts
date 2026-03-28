@@ -38,7 +38,7 @@ export class BuildingSpriteLayer {
       sprite.scale.set(buildingScale);
       sprite.position.set(building.x, building.y);
       sprite.zIndex = building.y;
-      sprite.tint = building.owner === "player1" ? 0xe7f2ff : 0xffecec;
+      sprite.tint = 0xffffff;
     }
 
     for (const [id, sprite] of this.entries.entries()) {

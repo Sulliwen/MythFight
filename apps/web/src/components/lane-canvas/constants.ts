@@ -3,7 +3,6 @@ export const WORLD_MAX_X = 1000;
 export const INTERPOLATION_DELAY_MS = 100;
 export const ATTACK_CYCLE_TICKS = 20;
 
-export const ROAD_TEXTURE_URL = "/sprites/environment/road.png";
 export const CASTLE_PLAYER1_TEXTURE_URL = "/sprites/JC/buildings/castle.png";
 export const CASTLE_PLAYER2_TEXTURE_URL = "/sprites/JC/buildings/castle.png";
 

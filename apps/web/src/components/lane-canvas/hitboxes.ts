@@ -2,7 +2,6 @@ import type { Graphics } from "pixi.js";
 import type { ProjectedUnit } from "./types";
 
 const HITBOX_COLOR = 0xff0000;
-const ROAD_HITBOX_INSET_PX = 2;
 const CASTLE_HITBOX_INSET_PX = 3;
 const MIN_HITBOX_SIZE_PX = 2;
 
@@ -26,12 +25,6 @@ export type CircleHitbox = {
 export type GameHitbox = RectHitbox | CircleHitbox;
 
 type SceneHitboxInput = {
-  road: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
   castles: {
     player1: {
       x: number;
@@ -65,19 +58,9 @@ function insetRect(
 }
 
 export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
-  const { road, castles, units, unitHitboxRadius } = input;
-  const roadRect = insetRect(road, ROAD_HITBOX_INSET_PX);
+  const { castles, units, unitHitboxRadius } = input;
   const castlePlayer1Rect = insetRect(castles.player1, CASTLE_HITBOX_INSET_PX);
   const castlePlayer2Rect = insetRect(castles.player2, CASTLE_HITBOX_INSET_PX);
-
-  const roadHitbox: RectHitbox = {
-    kind: "rect",
-    id: "road",
-    x: roadRect.x,
-    y: roadRect.y,
-    width: roadRect.width,
-    height: roadRect.height,
-  };
 
   const castlePlayer1Hitbox: RectHitbox = {
     kind: "rect",
@@ -105,7 +88,7 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     radius: unitHitboxRadius,
   }));
 
-  return [roadHitbox, castlePlayer1Hitbox, castlePlayer2Hitbox, ...unitHitboxes];
+  return [castlePlayer1Hitbox, castlePlayer2Hitbox, ...unitHitboxes];
 }
 
 export function drawHitboxOverlay(graphics: Graphics, hitboxes: GameHitbox[]): void {

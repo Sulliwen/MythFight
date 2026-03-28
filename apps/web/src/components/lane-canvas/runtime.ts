@@ -6,7 +6,6 @@ import {
   INTERPOLATION_DELAY_MS,
   PLAYER1_LANE_OFFSET_RATIO,
   PLAYER2_LANE_OFFSET_RATIO,
-  ROAD_TEXTURE_URL,
   WORLD_MAX_X,
   WORLD_MAX_Y,
   WORLD_MIN_X,
@@ -20,12 +19,6 @@ import { clamp, getCanvasSize } from "./math";
 import { computeTextureTrimRatios, NO_TRIM, type TextureTrimOptions, type TextureTrimRatios } from "./texture-trim";
 import { UnitSpriteLayer } from "./unit-sprite-layer";
 import type { LaneCanvasRuntimeBindings, ProjectedBuilding, ProjectedUnit } from "./types";
-
-const ROAD_TRIM_OPTIONS: TextureTrimOptions = {
-  alphaThreshold: 24,
-  minOpaquePixelsPerEdge: 6,
-  paddingPx: 1,
-};
 
 const CASTLE_TRIM_OPTIONS: TextureTrimOptions = {
   alphaThreshold: 20,
@@ -109,13 +102,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     onPlaceBuildingRef,
     controlledPlayerRef,
   } = bindings;
-  let roadTrimRatios: TextureTrimRatios = NO_TRIM;
   let castlePlayer1TrimRatios: TextureTrimRatios = NO_TRIM;
   let castlePlayer2TrimRatios: TextureTrimRatios = NO_TRIM;
 
   let destroyed = false;
   let app: Application | null = null;
-  let routeSprite: Sprite | null = null;
   let castlePlayer1Sprite: Sprite | null = null;
   let castlePlayer2Sprite: Sprite | null = null;
   let unitContainer: Container | null = null;
@@ -172,7 +163,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   const renderFrame = () => {
     if (
       !app ||
-      !routeSprite ||
       !castlePlayer1Sprite ||
       !castlePlayer2Sprite ||
       !unitSpriteLayer ||
@@ -188,10 +178,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     const laneCenterY = height * 0.62;
     const laneHeight = clamp(height * 0.13, 52, 120);
-    const roadVisualHeight = routeSprite.texture.height / 3;
-    const laneBottomY = laneCenterY + laneHeight * 0.5;
-    const roadCenterY = laneBottomY - roadVisualHeight * (0.5 - roadTrimRatios.bottom);
-
     const castleHeight = clamp(height * 0.3, 92, 216);
     const castleWidthP1 = castlePlayer1Sprite.texture.width > 0
       ? (castlePlayer1Sprite.texture.width / castlePlayer1Sprite.texture.height) * castleHeight
@@ -200,26 +186,20 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       ? (castlePlayer2Sprite.texture.width / castlePlayer2Sprite.texture.height) * castleHeight
       : castleHeight;
 
-    const roadVisualWidth = Math.min(routeSprite.texture.width / 3, width - 120);
-    const roadCenterX = width * 0.5;
-    const roadLeftX = roadCenterX - roadVisualWidth * 0.5;
-    const roadOpaqueX = roadLeftX + roadVisualWidth * roadTrimRatios.left;
-    const roadOpaqueY = roadCenterY - roadVisualHeight * 0.5 + roadVisualHeight * roadTrimRatios.top;
-    const roadOpaqueWidth = Math.max(1, roadVisualWidth * (1 - roadTrimRatios.left - roadTrimRatios.right));
-    const roadOpaqueHeight = Math.max(1, roadVisualHeight * (1 - roadTrimRatios.top - roadTrimRatios.bottom));
-    const roadOpaqueLeftX = roadOpaqueX;
-    const roadOpaqueRightX = roadOpaqueX + roadOpaqueWidth;
-    const castleRoadGap = 0;
+    // Place castles near screen edges
+    const castleMargin = 8;
+    const leftCastleX = castleWidthP1 * 0.5 + castleMargin;
+    const rightCastleX = width - castleWidthP2 * 0.5 - castleMargin;
 
-    const leftCastleCenterToOpaqueRightPx = castleWidthP1 * (0.5 - castlePlayer1TrimRatios.right);
-    const rightCastleCenterToOpaqueLeftPx = castleWidthP2 * (0.5 - castlePlayer2TrimRatios.left);
-    const leftCastleIdealX = roadOpaqueLeftX - castleRoadGap - leftCastleCenterToOpaqueRightPx;
-    const rightCastleIdealX = roadOpaqueRightX + castleRoadGap + rightCastleCenterToOpaqueLeftPx;
-    const leftCastleX = Math.max(castleWidthP1 * 0.5 + 8, leftCastleIdealX);
-    const rightCastleX = Math.min(width - castleWidthP2 * 0.5 - 8, rightCastleIdealX);
+    // Lane spans between the opaque inner edges of each castle
+    const laneLeftX = leftCastleX + castleWidthP1 * (0.5 - castlePlayer1TrimRatios.right);
+    const laneRightX = rightCastleX - castleWidthP2 * (0.5 - castlePlayer2TrimRatios.left);
 
-    const castlesBaseYPlayer1 = laneBottomY + castleHeight * castlePlayer1TrimRatios.bottom;
-    const castlesBaseYPlayer2 = laneBottomY + castleHeight * castlePlayer2TrimRatios.bottom;
+    // Center castles vertically on screen (anchor is 0.5, 1 so base = center + half opaque height)
+    const castleOpaqueHeightP1 = castleHeight * (1 - castlePlayer1TrimRatios.top - castlePlayer1TrimRatios.bottom);
+    const castleOpaqueHeightP2 = castleHeight * (1 - castlePlayer2TrimRatios.top - castlePlayer2TrimRatios.bottom);
+    const castlesBaseYPlayer1 = height * 0.5 + castleOpaqueHeightP1 * 0.5 + castleHeight * castlePlayer1TrimRatios.bottom;
+    const castlesBaseYPlayer2 = height * 0.5 + castleOpaqueHeightP2 * 0.5 + castleHeight * castlePlayer2TrimRatios.bottom;
 
     // Define game area for coordinate mapping: the entire visible canvas
     const gameAreaX = 0;
@@ -255,10 +235,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     castlePlayer2Sprite.position.set(rightCastleX, castlesBaseYPlayer2);
     castlePlayer2Sprite.width = castleWidthP2;
     castlePlayer2Sprite.height = castleHeight;
-
-    routeSprite.position.set(roadCenterX, roadCenterY);
-    routeSprite.width = roadVisualWidth;
-    routeSprite.height = roadVisualHeight;
 
     // Render buildings from snapshot
     const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
@@ -337,7 +313,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     let projectedUnits: ProjectedUnit[] = [];
     if (pair) {
       const interpolatedUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
-      projectedUnits = projectUnitsToLane(interpolatedUnits, roadOpaqueLeftX, roadOpaqueRightX, laneCenterY, laneHeight);
+      projectedUnits = projectUnitsToLane(interpolatedUnits, laneLeftX, laneRightX, laneCenterY, laneHeight);
 
       const referenceFrameHeight = unitSpriteLayer.getReferenceFrameHeight();
       const golemScale = clamp((laneHeight * 0.78) / referenceFrameHeight, 0.08, 0.24);
@@ -350,12 +326,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     if (showImageOutlineDebugRef.current) {
       drawImageOutlines(imageOutlineGraphics, [
-        {
-          x: roadOpaqueX,
-          y: roadOpaqueY,
-          width: roadOpaqueWidth,
-          height: roadOpaqueHeight,
-        },
         {
           x: castlePlayer1OpaqueX,
           y: castlePlayer1OpaqueY,
@@ -375,12 +345,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     if (showHitboxDebugRef.current) {
       const hitboxes = defineGameHitboxes({
-        road: {
-          x: roadOpaqueX,
-          y: roadOpaqueY,
-          width: roadOpaqueWidth,
-          height: roadOpaqueHeight,
-        },
         castles: {
           player1: {
             x: castlePlayer1OpaqueX,
@@ -432,14 +396,12 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     pixiApp.canvas.addEventListener("pointerleave", onPointerLeave);
     pixiApp.canvas.addEventListener("pointerdown", onPointerDown);
 
-    const [roadTexture, castleP1Texture, castleP2Texture, golemHouseTexture] = await Promise.all([
-      Assets.load<Texture>(ROAD_TEXTURE_URL),
+    const [castleP1Texture, castleP2Texture, golemHouseTexture] = await Promise.all([
       Assets.load<Texture>(CASTLE_PLAYER1_TEXTURE_URL),
       Assets.load<Texture>(CASTLE_PLAYER2_TEXTURE_URL),
       Assets.load<Texture>(GOLEM_HOUSE_TEXTURE_URL),
     ]);
-    const [roadTrim, castleP1Trim, castleP2Trim] = await Promise.all([
-      computeTextureTrimRatios(ROAD_TEXTURE_URL, ROAD_TRIM_OPTIONS),
+    const [castleP1Trim, castleP2Trim] = await Promise.all([
       computeTextureTrimRatios(CASTLE_PLAYER1_TEXTURE_URL, CASTLE_TRIM_OPTIONS),
       computeTextureTrimRatios(CASTLE_PLAYER2_TEXTURE_URL, CASTLE_TRIM_OPTIONS),
     ]);
@@ -449,14 +411,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       return;
     }
 
-    roadTrimRatios = roadTrim;
     castlePlayer1TrimRatios = castleP1Trim;
     castlePlayer2TrimRatios = castleP2Trim;
     ghostTexture = golemHouseTexture;
 
     const sceneContainer = new Container();
-    routeSprite = new Sprite(roadTexture);
-    routeSprite.anchor.set(0.5);
 
     castlePlayer1Sprite = new Sprite(castleP1Texture);
     castlePlayer1Sprite.anchor.set(0.5, 1);
@@ -480,7 +439,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     buildZoneGraphics = new Graphics();
     gameAreaGraphics = new Graphics();
 
-    sceneContainer.addChild(routeSprite);
     sceneContainer.addChild(gameAreaGraphics);
     sceneContainer.addChild(castlePlayer1Sprite);
     sceneContainer.addChild(castlePlayer2Sprite);
