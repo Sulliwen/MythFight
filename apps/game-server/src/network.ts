@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { getBuildingActionPayload, getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
+import { updateCreatureStats, type CreatureId, type CreatureStats } from "./creatures.js";
 import { TICK_RATE, buildSnapshot, forceSpawnFromBuilding, placeBuilding, resetWorld, spawnUnit, toggleBuildingProduction } from "./world.js";
-import type { CreatureId } from "./creatures.js";
 import type { PlayerId, WorldState } from "./types.js";
 
 type ClientsMap = Map<WebSocket, PlayerId>;
@@ -11,7 +11,6 @@ export function handleConnection(
   clients: ClientsMap,
   world: WorldState
 ): void {
-  console.log("Client connected");
 
   socket.on("message", (raw) => {
     const parsed = parseIncoming(raw);
@@ -33,13 +32,11 @@ export function handleConnection(
           playerId: join.playerId,
         })
       );
-      console.log(`join ok: roomId=${join.roomId}, playerId=${join.playerId}`);
       return;
     }
 
     if (message.type === "join" && !join.ok) {
       socket.send(JSON.stringify({ type: "error", reason: "invalid_join_payload" }));
-      console.log(`join invalid: reason=${join.reason}`);
       return;
     }
 
@@ -55,7 +52,6 @@ export function handleConnection(
         socket.send(JSON.stringify({ type: "error", reason: result.reason }));
         return;
       }
-      console.log(`spawn: owner=${owner}, unitId=${result.unit.id}, x=${result.unit.x}, y=${result.unit.y}`);
       return;
     }
 
@@ -74,7 +70,6 @@ export function handleConnection(
         return;
       }
 
-      console.log(`place_building: owner=${owner}, id=${result.building.id}, x=${x}, y=${y}`);
       return;
     }
 
@@ -91,7 +86,6 @@ export function handleConnection(
       }
 
       resetWorld(world);
-      console.log(`new game requested by ${owner}`);
       return;
     }
 
@@ -109,6 +103,21 @@ export function handleConnection(
           serverTime: Date.now(),
         })
       );
+      return;
+    }
+
+    if (message.type === "update_creature_stats") {
+      const owner = clients.get(socket);
+      if (!owner) {
+        socket.send(JSON.stringify({ type: "error", reason: "must_join_first" }));
+        return;
+      }
+      const { creatureId, stats } = message as unknown as { creatureId: unknown; stats: unknown };
+      if (typeof creatureId !== "string" || typeof stats !== "object" || stats === null) {
+        socket.send(JSON.stringify({ type: "error", reason: "invalid_update_creature_stats" }));
+        return;
+      }
+      updateCreatureStats(creatureId as CreatureId, stats as Partial<CreatureStats>);
       return;
     }
 
@@ -142,7 +151,6 @@ export function handleConnection(
 
   socket.on("close", () => {
     clients.delete(socket);
-    console.log("Client disconnected");
   });
 }
 

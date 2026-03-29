@@ -50,6 +50,9 @@ export type Unit = UnitSnapshot & {
   waypoints: Waypoint[];
   attackTargetId?: string;
   chaseRecalcTick?: number;
+  stuckTicks?: number;
+  prevX?: number;
+  prevY?: number;
 };
 
 export type WorldState = {

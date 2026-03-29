@@ -56,7 +56,6 @@ export function updateCreatureStats(creatureId: CreatureId, partial: Partial<Cre
   const stats = CREATURE_STATS[creatureId];
   if (!stats) return;
   Object.assign(stats, partial);
-  console.log(`[updateCreatureStats] ${creatureId}:`, stats);
 }
 
 export function getAttackHitOffsetTicks(creatureId: CreatureId): number {

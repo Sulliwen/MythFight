@@ -213,7 +213,8 @@ export function findPath(
     }
   }
 
-  // Unblock goal cell
+  // Unblock start and goal cells so the path can begin and end
+  blocked[start.cy * cols + start.cx] = false;
   blocked[goal.cy * cols + goal.cx] = false;
 
   const path = astar(start.cx, start.cy, goal.cx, goal.cy, cols, rows, blocked);
