@@ -1,6 +1,8 @@
 import { getBuildingStats } from "./creatures.js";
 import type { Building, Waypoint } from "./types.js";
 
+export type ObstacleRect = { x: number; y: number; w: number; h: number };
+
 const CELL_SIZE = 20;
 
 // Grid-based A* pathfinding that avoids buildings.
@@ -9,15 +11,16 @@ const CELL_SIZE = 20;
 function buildGrid(
   minX: number, maxX: number, minY: number, maxY: number,
   buildings: Building[],
+  extraObstacles: ObstacleRect[],
   unitRadius: number,
 ): { cols: number; rows: number; blocked: boolean[] } {
   const cols = Math.ceil((maxX - minX) / CELL_SIZE);
   const rows = Math.ceil((maxY - minY) / CELL_SIZE);
   const blocked = new Array<boolean>(cols * rows).fill(false);
 
+  // Block building rects
   for (const b of buildings) {
     const stats = getBuildingStats(b.creatureId);
-    // Use exact building rect — sliding handles the rest
     const bx1 = b.x - stats.hitboxWidth / 2;
     const by1 = b.y - stats.hitboxHeight / 2;
     const bx2 = b.x + stats.hitboxWidth / 2;
@@ -28,6 +31,19 @@ function buildGrid(
     const cMinY = Math.max(0, Math.floor((by1 - minY) / CELL_SIZE));
     const cMaxY = Math.min(rows - 1, Math.floor((by2 - minY) / CELL_SIZE));
 
+    for (let cy = cMinY; cy <= cMaxY; cy++) {
+      for (let cx = cMinX; cx <= cMaxX; cx++) {
+        blocked[cy * cols + cx] = true;
+      }
+    }
+  }
+
+  // Block extra obstacle rects (castles, etc.)
+  for (const ob of extraObstacles) {
+    const cMinX = Math.max(0, Math.floor((ob.x - minX) / CELL_SIZE));
+    const cMaxX = Math.min(cols - 1, Math.floor((ob.x + ob.w - minX) / CELL_SIZE));
+    const cMinY = Math.max(0, Math.floor((ob.y - minY) / CELL_SIZE));
+    const cMaxY = Math.min(rows - 1, Math.floor((ob.y + ob.h - minY) / CELL_SIZE));
     for (let cy = cMinY; cy <= cMaxY; cy++) {
       for (let cx = cMinX; cx <= cMaxX; cx++) {
         blocked[cy * cols + cx] = true;
@@ -165,10 +181,11 @@ export function findPath(
   startX: number, startY: number,
   goalX: number, goalY: number,
   buildings: Building[],
+  extraObstacles: ObstacleRect[],
   unitRadius: number,
   minX: number, maxX: number, minY: number, maxY: number,
 ): Waypoint[] {
-  const { cols, rows, blocked } = buildGrid(minX, maxX, minY, maxY, buildings, unitRadius);
+  const { cols, rows, blocked } = buildGrid(minX, maxX, minY, maxY, buildings, extraObstacles, unitRadius);
 
   const start = worldToCell(startX, startY, minX, minY, cols, rows);
   const goal = worldToCell(goalX, goalY, minX, minY, cols, rows);

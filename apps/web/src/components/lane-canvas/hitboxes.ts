@@ -85,7 +85,7 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     kind: "rect",
     id: `building-${b.id}`,
     x: b.x - b.spriteWidth * 0.5,
-    y: b.y - b.spriteHeight * 0.9,
+    y: b.y - b.spriteHeight * 0.5,
     width: b.spriteWidth,
     height: b.spriteHeight,
   }));

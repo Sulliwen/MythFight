@@ -39,7 +39,7 @@ export class BuildingSpriteLayer {
     }
   }
 
-  renderBuildings(buildings: ProjectedBuilding[], buildingScale: number): void {
+  renderBuildings(buildings: ProjectedBuilding[]): void {
     if (!this.texture) return;
 
     const visibleIds = new Set<string>();
@@ -50,7 +50,7 @@ export class BuildingSpriteLayer {
       let entry = this.entries.get(building.id);
       if (!entry) {
         const sprite = new Sprite(this.texture);
-        sprite.anchor.set(0.5, 0.9);
+        sprite.anchor.set(0.5, 0.5);
 
         const hpBar = new Graphics();
         this.container.addChild(sprite);
@@ -59,7 +59,9 @@ export class BuildingSpriteLayer {
         this.entries.set(building.id, entry);
       }
 
-      entry.sprite.scale.set(buildingScale);
+      // Size sprite to match world hitbox dimensions (already in screen pixels)
+      entry.sprite.width = building.spriteWidth;
+      entry.sprite.height = building.spriteHeight;
       entry.sprite.position.set(building.x, building.y);
       entry.sprite.zIndex = building.y;
       entry.sprite.tint = 0xffffff;
@@ -67,8 +69,7 @@ export class BuildingSpriteLayer {
       // Draw HP bar above the building sprite
       const ratio = building.maxHp > 0 ? Math.max(0, building.hp / building.maxHp) : 0;
       const barX = building.x - HP_BAR_WIDTH / 2;
-      const spriteTopY = building.y - this.texture.height * buildingScale * 0.9;
-      const barY = spriteTopY + HP_BAR_OFFSET_Y;
+      const barY = building.y - building.spriteHeight / 2 + HP_BAR_OFFSET_Y;
 
       const g = entry.hpBar;
       g.clear();
