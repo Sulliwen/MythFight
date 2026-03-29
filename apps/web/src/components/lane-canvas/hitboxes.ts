@@ -81,18 +81,14 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     height: castlePlayer2Rect.height,
   };
 
-  const buildingHitboxes: RectHitbox[] = buildings.map((b) => {
-    const w = b.spriteWidth;
-    const h = b.spriteHeight;
-    return {
-      kind: "rect",
-      id: `building-${b.id}`,
-      x: b.x - w * 0.5,
-      y: b.y - h * 0.9,
-      width: w,
-      height: h,
-    };
-  });
+  const buildingHitboxes: RectHitbox[] = buildings.map((b) => ({
+    kind: "rect",
+    id: `building-${b.id}`,
+    x: b.x - b.spriteWidth * 0.5,
+    y: b.y - b.spriteHeight * 0.9,
+    width: b.spriteWidth,
+    height: b.spriteHeight,
+  }));
 
   const unitHitboxes: CircleHitbox[] = units.map((unit) => ({
     kind: "circle",

@@ -13,6 +13,7 @@ export type LaneCanvasProps = {
   showImageOutlineDebug?: boolean;
   showBuildZoneDebug?: boolean;
   showGameAreaDebug?: boolean;
+  showCollisionDebug?: boolean;
   buildMode?: BuildMode;
   onPlaceBuilding?: (worldX: number, worldY: number, creatureId: CreatureId) => void;
   onSelect?: (target: SelectionTarget) => void;
@@ -25,6 +26,7 @@ export type LaneCanvasStateRefs = {
   showImageOutlineDebugRef: MutableRefObject<boolean>;
   showBuildZoneDebugRef: MutableRefObject<boolean>;
   showGameAreaDebugRef: MutableRefObject<boolean>;
+  showCollisionDebugRef: MutableRefObject<boolean>;
   buildModeRef: MutableRefObject<BuildMode>;
   onPlaceBuildingRef: MutableRefObject<((worldX: number, worldY: number, creatureId: CreatureId) => void) | undefined>;
   onSelectRef: MutableRefObject<((target: SelectionTarget) => void) | undefined>;

@@ -35,10 +35,14 @@ export type UnitSnapshot = {
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
+  waypoints?: { x: number; y: number }[];
 };
+
+export type Waypoint = { x: number; y: number };
 
 export type Unit = UnitSnapshot & {
   attackCycleStartTick: number;
+  waypoints: Waypoint[];
 };
 
 export type WorldState = {

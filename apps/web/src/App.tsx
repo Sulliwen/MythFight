@@ -30,6 +30,7 @@ function App() {
   const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(true);
   const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(true);
   const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
@@ -134,6 +135,7 @@ function App() {
           showImageOutlineDebug={showImageOutlineDebug}
           showBuildZoneDebug={showBuildZoneDebug}
           showGameAreaDebug={showGameAreaDebug}
+          showCollisionDebug={showCollisionDebug}
           buildMode={buildMode}
           onPlaceBuilding={handlePlaceBuilding}
           onSelect={setSelection}
@@ -247,6 +249,8 @@ function App() {
             onToggleBuildZoneDebug={() => setShowBuildZoneDebug((prev) => !prev)}
             showGameAreaDebug={showGameAreaDebug}
             onToggleGameAreaDebug={() => setShowGameAreaDebug((prev) => !prev)}
+            showCollisionDebug={showCollisionDebug}
+            onToggleCollisionDebug={() => setShowCollisionDebug((prev) => !prev)}
             castleHp={displayCastleHp}
             unitsCount={unitsCount}
             lastMessage={lastMessage}

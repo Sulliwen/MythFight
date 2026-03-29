@@ -27,6 +27,7 @@ export type Unit = {
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
+  waypoints?: { x: number; y: number }[];
 };
 
 export type WelcomeMsg = {
