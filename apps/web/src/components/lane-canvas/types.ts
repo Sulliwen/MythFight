@@ -1,4 +1,4 @@
-import type { AnimatedSprite, Text } from "pixi.js";
+import type { AnimatedSprite, Graphics, Text } from "pixi.js";
 import type { MutableRefObject } from "react";
 import type { CreatureId, PlayerId, SelectionTarget, SnapshotMsg, Unit } from "../../types";
 
@@ -16,6 +16,7 @@ export type LaneCanvasProps = {
   showCollisionDebug?: boolean;
   showGridDebug?: boolean;
   showAttackRangeDebug?: boolean;
+  showVisionDebug?: boolean;
   buildMode?: BuildMode;
   onPlaceBuilding?: (worldX: number, worldY: number, creatureId: CreatureId) => void;
   onSelect?: (target: SelectionTarget) => void;
@@ -31,6 +32,7 @@ export type LaneCanvasStateRefs = {
   showCollisionDebugRef: MutableRefObject<boolean>;
   showGridDebugRef: MutableRefObject<boolean>;
   showAttackRangeDebugRef: MutableRefObject<boolean>;
+  showVisionDebugRef: MutableRefObject<boolean>;
   buildModeRef: MutableRefObject<BuildMode>;
   onPlaceBuildingRef: MutableRefObject<((worldX: number, worldY: number, creatureId: CreatureId) => void) | undefined>;
   onSelectRef: MutableRefObject<((target: SelectionTarget) => void) | undefined>;
@@ -53,10 +55,13 @@ export type InterpolatedUnit = {
   x: number;
   y: number;
   vx: number;
+  hp: number;
+  maxHp: number;
   state: Unit["state"];
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
+  attackTargetId?: string;
 };
 
 export type ProjectedUnit = {
@@ -65,10 +70,13 @@ export type ProjectedUnit = {
   x: number;
   y: number;
   vx: number;
+  hp: number;
+  maxHp: number;
   state: Unit["state"];
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
+  attackTargetId?: string;
 };
 
 export type ProjectedBuilding = {
@@ -88,6 +96,7 @@ export type UnitAnimationMode = "walk" | "attack" | "idle";
 export type UnitSpriteEntry = {
   sprite: AnimatedSprite;
   label: Text;
+  hpBar: Graphics;
   mode: UnitAnimationMode;
   lastAttackFrame?: number;
   lastAttackCycleTick?: number;

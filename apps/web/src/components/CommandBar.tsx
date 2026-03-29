@@ -8,6 +8,8 @@ type CommandBarProps = {
   selection: SelectionTarget;
   snapshots: SnapshotMsg[];
   controlledPlayer: PlayerId;
+  onToggleProduction: (buildingId: string) => void;
+  onForceSpawn: (buildingId: string) => void;
 };
 
 const CASTLE_HP_MAX = 1000;
@@ -99,11 +101,15 @@ export function CommandBar({
   selection,
   snapshots,
   controlledPlayer,
+  onToggleProduction,
+  onForceSpawn,
 }: CommandBarProps) {
   const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
   let centerContent: React.ReactNode = <span className="cmd-bar__center-empty">Aucune selection</span>;
   let showBuildActions = false;
+  let showBuildingActions = false;
+  let selectedBuilding: { id: string; paused: boolean; owner: string } | null = null;
 
   if (selection && latest) {
     if (selection.kind === "castle") {
@@ -114,6 +120,10 @@ export function CommandBar({
       const building = latest.buildings?.find((b) => b.id === selection.id);
       if (building) {
         centerContent = <BuildingInfo building={building} />;
+        if (building.owner === controlledPlayer) {
+          showBuildingActions = true;
+          selectedBuilding = { id: building.id, paused: building.paused, owner: building.owner };
+        }
       } else {
         centerContent = <span className="cmd-bar__center-empty">Batiment detruit</span>;
       }
@@ -126,6 +136,74 @@ export function CommandBar({
       }
     }
   }
+
+  const renderActions = () => {
+    if (showBuildActions) {
+      return (
+        <>
+          <button
+            type="button"
+            className={`cmd-bar__action-btn ${buildModeActive ? "cmd-bar__action-btn--active" : ""}`}
+            onClick={onToggleBuildMode}
+            disabled={disabled}
+            title="Construire Golem House (B)"
+          >
+            <img
+              src="/sprites/JC/buildings/Golem_house.png"
+              alt="Golem House"
+              className="cmd-bar__action-icon"
+            />
+          </button>
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+        </>
+      );
+    }
+
+    if (showBuildingActions && selectedBuilding) {
+      const bId = selectedBuilding.id;
+      return (
+        <>
+          <button
+            type="button"
+            className={`cmd-bar__action-btn ${selectedBuilding.paused ? "cmd-bar__action-btn--active" : ""}`}
+            onClick={() => onToggleProduction(bId)}
+            disabled={disabled}
+            title={selectedBuilding.paused ? "Reprendre la production" : "Arreter la production"}
+          >
+            {selectedBuilding.paused ? "\u25B6" : "\u23F8"}
+          </button>
+          <button
+            type="button"
+            className="cmd-bar__action-btn"
+            onClick={() => onForceSpawn(bId)}
+            disabled={disabled}
+            title="Spawn immediat"
+          >
+            {"\u26A1"}
+          </button>
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="cmd-bar__action-slot" />
+        <div className="cmd-bar__action-slot" />
+        <div className="cmd-bar__action-slot" />
+        <div className="cmd-bar__action-slot" />
+        <div className="cmd-bar__action-slot" />
+        <div className="cmd-bar__action-slot" />
+      </>
+    );
+  };
 
   return (
     <div className="cmd-bar">
@@ -141,37 +219,7 @@ export function CommandBar({
 
       {/* Right panel: action grid */}
       <div className="cmd-bar__actions">
-        {showBuildActions ? (
-          <>
-            <button
-              type="button"
-              className={`cmd-bar__action-btn ${buildModeActive ? "cmd-bar__action-btn--active" : ""}`}
-              onClick={onToggleBuildMode}
-              disabled={disabled}
-              title="Construire Golem House (B)"
-            >
-              <img
-                src="/sprites/JC/buildings/Golem_house.png"
-                alt="Golem House"
-                className="cmd-bar__action-icon"
-              />
-            </button>
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-          </>
-        ) : (
-          <>
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-            <div className="cmd-bar__action-slot" />
-          </>
-        )}
+        {renderActions()}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
-import { TICK_RATE, buildSnapshot, placeBuilding, resetWorld, spawnUnit } from "./world.js";
+import { getBuildingActionPayload, getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
+import { TICK_RATE, buildSnapshot, forceSpawnFromBuilding, placeBuilding, resetWorld, spawnUnit, toggleBuildingProduction } from "./world.js";
 import type { CreatureId } from "./creatures.js";
 import type { PlayerId, WorldState } from "./types.js";
 
@@ -109,6 +109,31 @@ export function handleConnection(
           serverTime: Date.now(),
         })
       );
+      return;
+    }
+
+    if (message.type === "toggle_production" || message.type === "force_spawn") {
+      const owner = clients.get(socket);
+      if (!owner) {
+        socket.send(JSON.stringify({ type: "error", reason: "must_join_first" }));
+        return;
+      }
+      const actionResult = getBuildingActionPayload(message);
+      if (!actionResult.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: actionResult.reason }));
+        return;
+      }
+      if (message.type === "toggle_production") {
+        const result = toggleBuildingProduction(world, owner, actionResult.payload.buildingId);
+        if (!result.ok) {
+          socket.send(JSON.stringify({ type: "error", reason: result.reason }));
+        }
+        return;
+      }
+      const result = forceSpawnFromBuilding(world, owner, actionResult.payload.buildingId);
+      if (!result.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: result.reason }));
+      }
       return;
     }
 

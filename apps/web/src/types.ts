@@ -1,5 +1,5 @@
 export type PlayerId = "player1" | "player2";
-export type UnitState = "moving" | "attacking";
+export type UnitState = "moving" | "attacking" | "attacking_unit";
 export type CreatureId = "golem";
 
 export type BuildingSnapshot = {
@@ -12,6 +12,7 @@ export type BuildingSnapshot = {
   maxHp: number;
   spawnTicksRemaining: number;
   spawnIntervalTicks: number;
+  paused: boolean;
 };
 
 export type Unit = {
@@ -23,6 +24,7 @@ export type Unit = {
   vx: number;
   vy: number;
   hp: number;
+  maxHp: number;
   state: UnitState;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
@@ -30,6 +32,7 @@ export type Unit = {
   waypoints?: { x: number; y: number }[];
   attackTargetX?: number;
   attackTargetY?: number;
+  attackTargetId?: string;
 };
 
 export type WelcomeMsg = {

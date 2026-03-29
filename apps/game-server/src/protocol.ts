@@ -53,6 +53,19 @@ type PlaceBuildingPayloadResult =
   | { ok: true; payload: PlaceBuildingPayload }
   | { ok: false; reason: string };
 
+type BuildingActionPayload = { buildingId: string };
+type BuildingActionPayloadResult =
+  | { ok: true; payload: BuildingActionPayload }
+  | { ok: false; reason: string };
+
+export function getBuildingActionPayload(message: IncomingMessage): BuildingActionPayloadResult {
+  const { buildingId } = message as Record<string, unknown>;
+  if (typeof buildingId !== "string") {
+    return { ok: false, reason: "invalid_building_id" };
+  }
+  return { ok: true, payload: { buildingId } };
+}
+
 export function getPlaceBuildingPayload(message: IncomingMessage): PlaceBuildingPayloadResult {
   if (message.type !== "place_building") {
     return { ok: false, reason: "not_place_building" };

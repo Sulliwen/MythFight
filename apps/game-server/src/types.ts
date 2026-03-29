@@ -1,7 +1,7 @@
 import type { CreatureId } from "./creatures.js";
 
 export type PlayerId = "player1" | "player2";
-export type UnitState = "moving" | "attacking";
+export type UnitState = "moving" | "attacking" | "attacking_unit";
 
 export type IncomingMessage = {
   type: string;
@@ -18,6 +18,7 @@ export type BuildingSnapshot = {
   maxHp: number;
   spawnTicksRemaining: number;
   spawnIntervalTicks: number;
+  paused: boolean;
 };
 
 export type Building = BuildingSnapshot;
@@ -31,6 +32,7 @@ export type UnitSnapshot = {
   vx: number;
   vy: number;
   hp: number;
+  maxHp: number;
   state: UnitState;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
@@ -38,6 +40,7 @@ export type UnitSnapshot = {
   waypoints?: { x: number; y: number }[];
   attackTargetX?: number;
   attackTargetY?: number;
+  attackTargetId?: string;
 };
 
 export type Waypoint = { x: number; y: number };
@@ -45,6 +48,8 @@ export type Waypoint = { x: number; y: number };
 export type Unit = UnitSnapshot & {
   attackCycleStartTick: number;
   waypoints: Waypoint[];
+  attackTargetId?: string;
+  chaseRecalcTick?: number;
 };
 
 export type WorldState = {

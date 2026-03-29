@@ -40,10 +40,13 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
         x: a.x + (b.x - a.x) * alpha,
         y: a.y + (b.y - a.y) * alpha,
         vx: a.vx + (b.vx - a.vx) * alpha,
+        hp: alpha < 0.5 ? a.hp : b.hp,
+        maxHp: b.maxHp,
         state: alpha < 0.5 ? a.state : b.state,
         attackCycleTick: alpha < 0.5 ? a.attackCycleTick : b.attackCycleTick,
         attackIntervalTicks: alpha < 0.5 ? a.attackIntervalTicks : b.attackIntervalTicks,
         attackHitOffsetTicks: alpha < 0.5 ? a.attackHitOffsetTicks : b.attackHitOffsetTicks,
+        attackTargetId: alpha < 0.5 ? a.attackTargetId : b.attackTargetId,
       });
       continue;
     }
@@ -55,10 +58,13 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
         x: b.x,
         y: b.y,
         vx: b.vx,
+        hp: b.hp,
+        maxHp: b.maxHp,
         state: b.state,
         attackCycleTick: b.attackCycleTick,
         attackIntervalTicks: b.attackIntervalTicks,
         attackHitOffsetTicks: b.attackHitOffsetTicks,
+        attackTargetId: b.attackTargetId,
       });
       continue;
     }
@@ -70,10 +76,13 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
         x: a.x,
         y: a.y,
         vx: a.vx,
+        hp: a.hp,
+        maxHp: a.maxHp,
         state: a.state,
         attackCycleTick: a.attackCycleTick,
         attackIntervalTicks: a.attackIntervalTicks,
         attackHitOffsetTicks: a.attackHitOffsetTicks,
+        attackTargetId: a.attackTargetId,
       });
     }
   }

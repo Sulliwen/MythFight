@@ -260,6 +260,18 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "place_building", x, y, creatureId }));
   }
 
+  function sendToggleProduction(buildingId: string) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "toggle_production", buildingId }));
+  }
+
+  function sendForceSpawn(buildingId: string) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "force_spawn", buildingId }));
+  }
+
   function toggleSnapshotDebug() {
     setShowSnapshotDebug((prev) => !prev);
   }
@@ -283,5 +295,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     sendSpawn,
     sendNewGame,
     sendPlaceBuilding,
+    sendToggleProduction,
+    sendForceSpawn,
   };
 }

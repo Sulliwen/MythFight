@@ -34,10 +34,13 @@ function projectUnits(
         x,
         y,
         vx: unit.vx,
+        hp: unit.hp,
+        maxHp: unit.maxHp,
         state: unit.state,
         attackCycleTick: unit.attackCycleTick,
         attackIntervalTicks: unit.attackIntervalTicks,
         attackHitOffsetTicks: unit.attackHitOffsetTicks,
+        attackTargetId: unit.attackTargetId,
       };
     })
     .sort((left, right) => left.y - right.y);
@@ -52,6 +55,7 @@ const CASTLE_COL_H = 100;
 const CASTLE_COL_P1 = { x: 120, y: 280 };
 const CASTLE_COL_P2 = { x: 880, y: 280 };
 const CREATURE_ATTACK_RANGE = 20; // must match server CreatureStats.attackRange
+const CREATURE_VISION_RANGE = 100; // must match server CreatureStats.visionRange
 const PATHFINDING_CELL_SIZE = 20;
 
 // Convert screen coordinates to world coordinates, clamping to valid building placement bounds
@@ -135,6 +139,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     showCollisionDebugRef,
     showGridDebugRef,
     showAttackRangeDebugRef,
+    showVisionDebugRef,
     buildModeRef,
     onPlaceBuildingRef,
     onSelectRef,
@@ -157,6 +162,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let castleHpGraphics: Graphics | null = null;
   let collisionDebugGraphics: Graphics | null = null;
   let gridDebugGraphics: Graphics | null = null;
+  let visionDebugGraphics: Graphics | null = null;
   let buildZoneGraphics: Graphics | null = null;
   let gameAreaGraphics: Graphics | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -469,9 +475,9 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
               .stroke({ color: RANGE_COLOR, width: 1, alpha: 0.5 });
           }
 
-          // Draw attack target points for attacking units
+          // Draw attack target points for attacking units (castle or unit)
           for (const u of latestForRange) {
-            if (u.state !== "attacking" || u.attackTargetX == null || u.attackTargetY == null) continue;
+            if ((u.state !== "attacking" && u.state !== "attacking_unit") || u.attackTargetX == null || u.attackTargetY == null) continue;
             const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
             const { screenX: tx, screenY: ty } = worldToScreen(u.attackTargetX, u.attackTargetY, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
             // Line from unit to attack point
@@ -481,26 +487,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
           }
         }
 
-        // Draw unit waypoint paths
-        const PATH_COLOR = 0x00ffaa;
-        const latestUnits = pair ? pair.b.units : [];
-        for (const u of latestUnits) {
-          if (!u.waypoints || u.waypoints.length === 0) continue;
-          const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-
-          // Line from unit to first waypoint
-          const { screenX: w0x, screenY: w0y } = worldToScreen(u.waypoints[0].x, u.waypoints[0].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-          collisionDebugGraphics.moveTo(ux, uy).lineTo(w0x, w0y).stroke({ color: PATH_COLOR, width: 1, alpha: 0.6 });
-          collisionDebugGraphics.circle(w0x, w0y, 3).fill({ color: PATH_COLOR, alpha: 0.7 });
-
-          // Lines between waypoints
-          for (let i = 1; i < u.waypoints.length; i++) {
-            const { screenX: prevX, screenY: prevY } = worldToScreen(u.waypoints[i - 1].x, u.waypoints[i - 1].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-            const { screenX: wpX, screenY: wpY } = worldToScreen(u.waypoints[i].x, u.waypoints[i].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-            collisionDebugGraphics.moveTo(prevX, prevY).lineTo(wpX, wpY).stroke({ color: PATH_COLOR, width: 1, alpha: 0.6 });
-            collisionDebugGraphics.circle(wpX, wpY, 3).fill({ color: PATH_COLOR, alpha: 0.7 });
-          }
-        }
       }
     }
 
@@ -528,6 +514,64 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
           const { screenX: sx0 } = worldToScreen(WORLD_MIN_X, 0, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
           const { screenX: sx1 } = worldToScreen(WORLD_MAX_X, 0, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
           gridDebugGraphics.moveTo(sx0, sy).lineTo(sx1, sy).stroke({ color: GRID_COLOR, width: 1, alpha: 0.5 });
+        }
+      }
+    }
+
+    // Draw unit waypoint paths (always visible)
+    if (collisionDebugGraphics && pair) {
+      const PATH_COLOR = 0x00ffaa;
+      const CHASE_PATH_COLOR = 0xff88ff;
+      const latestUnits = pair.b.units;
+      for (const u of latestUnits) {
+        const isChasing = u.attackTargetId != null;
+        const pathColor = isChasing ? CHASE_PATH_COLOR : PATH_COLOR;
+        const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+
+        if (u.waypoints && u.waypoints.length > 0) {
+          // Line from unit to first waypoint
+          const { screenX: w0x, screenY: w0y } = worldToScreen(u.waypoints[0].x, u.waypoints[0].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+          collisionDebugGraphics.moveTo(ux, uy).lineTo(w0x, w0y).stroke({ color: pathColor, width: 1, alpha: 0.6 });
+          collisionDebugGraphics.circle(w0x, w0y, 3).fill({ color: pathColor, alpha: 0.7 });
+
+          // Lines between waypoints
+          for (let i = 1; i < u.waypoints.length; i++) {
+            const { screenX: prevX, screenY: prevY } = worldToScreen(u.waypoints[i - 1].x, u.waypoints[i - 1].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+            const { screenX: wpX, screenY: wpY } = worldToScreen(u.waypoints[i].x, u.waypoints[i].y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+            collisionDebugGraphics.moveTo(prevX, prevY).lineTo(wpX, wpY).stroke({ color: pathColor, width: 1, alpha: 0.6 });
+            collisionDebugGraphics.circle(wpX, wpY, 3).fill({ color: pathColor, alpha: 0.7 });
+          }
+        } else if (u.state === "moving") {
+          if (isChasing) {
+            // No waypoints but chasing: draw line to target unit
+            const target = latestUnits.find((t) => t.id === u.attackTargetId);
+            if (target) {
+              const { screenX: tx, screenY: ty } = worldToScreen(target.x, target.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+              collisionDebugGraphics.moveTo(ux, uy).lineTo(tx, ty).stroke({ color: pathColor, width: 1, alpha: 0.6 });
+              collisionDebugGraphics.circle(tx, ty, 3).fill({ color: pathColor, alpha: 0.7 });
+            }
+          } else {
+            // No waypoints, no chase: draw line toward enemy castle
+            const castleTarget = u.owner === "player1" ? CASTLE_COL_P2 : CASTLE_COL_P1;
+            const { screenX: cx, screenY: cy } = worldToScreen(castleTarget.x, castleTarget.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+            collisionDebugGraphics.moveTo(ux, uy).lineTo(cx, cy).stroke({ color: pathColor, width: 1, alpha: 0.3 });
+          }
+        }
+      }
+    }
+
+    // Draw vision range overlay
+    if (visionDebugGraphics) {
+      visionDebugGraphics.clear();
+      if (showVisionDebugRef.current) {
+        const visionRadiusScreenX = worldToScreenRadius(CREATURE_VISION_RANGE, gameAreaWidth);
+        const visionRadiusScreenY = (CREATURE_VISION_RANGE / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
+        for (const u of projectedUnits) {
+          const color = u.owner === "player1" ? 0x4a9eff : 0xff6b6b;
+          visionDebugGraphics.ellipse(u.x, u.y, visionRadiusScreenX, visionRadiusScreenY)
+            .fill({ color, alpha: 0.08 });
+          visionDebugGraphics.ellipse(u.x, u.y, visionRadiusScreenX, visionRadiusScreenY)
+            .stroke({ color, width: 1, alpha: 0.3 });
         }
       }
     }
@@ -597,6 +641,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     hitboxGraphics = new Graphics();
     collisionDebugGraphics = new Graphics();
     gridDebugGraphics = new Graphics();
+    visionDebugGraphics = new Graphics();
     castleHpGraphics = new Graphics();
     buildZoneGraphics = new Graphics();
     gameAreaGraphics = new Graphics();
@@ -612,6 +657,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     sceneContainer.addChild(ghostSprite);
     sceneContainer.addChild(imageOutlineGraphics);
     sceneContainer.addChild(hitboxGraphics);
+    sceneContainer.addChild(visionDebugGraphics);
     sceneContainer.addChild(collisionDebugGraphics);
 
     pixiApp.stage.addChild(sceneContainer);

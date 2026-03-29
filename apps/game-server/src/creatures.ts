@@ -9,6 +9,7 @@ export type CreatureStats = {
   attackAnimationFrameCount: number;
   attackHitFrameIndex: number;
   hitboxRadius: number;
+  visionRange: number;
 };
 
 export type BuildingStats = {
@@ -35,7 +36,7 @@ export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 
 const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
   golem: {
-    hp: 1,
+    hp: 100,
     moveSpeedPerTick: 8,
     attackDamage: 2,
     attackRange: 20,
@@ -43,6 +44,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     attackAnimationFrameCount: 6,
     attackHitFrameIndex: 3, // 0-based -> frame 4/6
     hitboxRadius: 12,
+    visionRange: 100,
   },
 };
 

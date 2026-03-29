@@ -15,6 +15,7 @@ export function LaneCanvas({
   showCollisionDebug = false,
   showGridDebug = false,
   showAttackRangeDebug = false,
+  showVisionDebug = false,
   buildMode = DEFAULT_BUILD_MODE,
   onPlaceBuilding,
   onSelect,
@@ -29,6 +30,7 @@ export function LaneCanvas({
   const showCollisionDebugRef = useRef(showCollisionDebug);
   const showGridDebugRef = useRef(showGridDebug);
   const showAttackRangeDebugRef = useRef(showAttackRangeDebug);
+  const showVisionDebugRef = useRef(showVisionDebug);
   const buildModeRef = useRef(buildMode);
   const onPlaceBuildingRef = useRef(onPlaceBuilding);
   const onSelectRef = useRef(onSelect);
@@ -67,6 +69,10 @@ export function LaneCanvas({
   }, [showAttackRangeDebug]);
 
   useEffect(() => {
+    showVisionDebugRef.current = showVisionDebug;
+  }, [showVisionDebug]);
+
+  useEffect(() => {
     buildModeRef.current = buildMode;
   }, [buildMode]);
 
@@ -96,6 +102,7 @@ export function LaneCanvas({
       showCollisionDebugRef,
       showGridDebugRef,
       showAttackRangeDebugRef,
+      showVisionDebugRef,
       buildModeRef,
       onPlaceBuildingRef,
       onSelectRef,
