@@ -17,4 +17,4 @@ export const GOLEM_ATTACK_FRAME_ASSET_URLS = buildFrameAssetUrls("/sprites/JC/go
 export const GOLEM_HOUSE_TEXTURE_URL = "/sprites/JC/buildings/Golem_house.png";
 
 export const WORLD_MIN_Y = 0;
-export const WORLD_MAX_Y = 300;
+export const WORLD_MAX_Y = 560;

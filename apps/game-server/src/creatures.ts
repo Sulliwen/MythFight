@@ -4,10 +4,10 @@ export type CreatureStats = {
   hp: number;
   moveSpeedPerTick: number;
   attackDamage: number;
+  attackRange: number;
   attackIntervalTicks: number;
   attackAnimationFrameCount: number;
   attackHitFrameIndex: number;
-  castleAttackPositionOffset: number;
   hitboxRadius: number;
 };
 
@@ -21,8 +21,8 @@ export type BuildingStats = {
 const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
   golem: {
     hp: 200,
-    hitboxWidth: 117,
-    hitboxHeight: 60,
+    hitboxWidth: 70,
+    hitboxHeight: 70,
     spawnIntervalTicks: 100, // 5 seconds at 20 TPS
   },
 };
@@ -38,10 +38,10 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     hp: 1,
     moveSpeedPerTick: 8,
     attackDamage: 2,
+    attackRange: 20,
     attackIntervalTicks: 20,
     attackAnimationFrameCount: 6,
     attackHitFrameIndex: 3, // 0-based -> frame 4/6
-    castleAttackPositionOffset: 8,
     hitboxRadius: 12,
   },
 };

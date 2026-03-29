@@ -1,4 +1,4 @@
-import { AnimatedSprite, Assets, type Container, type Texture } from "pixi.js";
+import { AnimatedSprite, Assets, type Container, Text, type Texture } from "pixi.js";
 import { ATTACK_CYCLE_TICKS, GOLEM_ATTACK_FRAME_ASSET_URLS, GOLEM_WALK_FRAME_ASSET_URLS } from "./constants";
 import type { ProjectedUnit, UnitAnimationMode, UnitSpriteEntry } from "./types";
 
@@ -158,7 +158,16 @@ export class UnitSpriteLayer {
         });
         sprite.anchor.set(0.5, 0.96);
         this.container.addChild(sprite);
-        entry = { sprite, mode, lastAttackFrame: undefined, lastAttackCycleTick: undefined };
+
+        const labelText = unit.id.replace(/^u/, "");
+        const label = new Text({
+          text: labelText,
+          style: { fontSize: 10, fill: 0xffffff, fontFamily: "monospace" },
+        });
+        label.anchor.set(0.5, 0);
+        this.container.addChild(label);
+
+        entry = { sprite, label, mode, lastAttackFrame: undefined, lastAttackCycleTick: undefined };
         this.entries.set(unit.id, entry);
       }
 
@@ -193,12 +202,17 @@ export class UnitSpriteLayer {
       entry.sprite.position.set(unit.x, unit.y + unitYOffset);
       entry.sprite.zIndex = unit.y;
       entry.sprite.tint = unit.owner === "player1" ? 0xe7f2ff : 0xffecec;
+
+      entry.label.position.set(unit.x, unit.y + unitYOffset + 4);
+      entry.label.zIndex = unit.y + 0.1;
     }
 
     for (const [unitId, entry] of this.entries.entries()) {
       if (visibleUnitIds.has(unitId)) continue;
       this.container.removeChild(entry.sprite);
+      this.container.removeChild(entry.label);
       entry.sprite.destroy();
+      entry.label.destroy();
       this.entries.delete(unitId);
     }
   }
@@ -206,7 +220,9 @@ export class UnitSpriteLayer {
   clear(): void {
     for (const entry of this.entries.values()) {
       entry.sprite.parent?.removeChild(entry.sprite);
+      entry.label.parent?.removeChild(entry.label);
       entry.sprite.destroy();
+      entry.label.destroy();
     }
     this.entries.clear();
   }

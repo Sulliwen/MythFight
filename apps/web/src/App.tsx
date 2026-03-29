@@ -32,6 +32,7 @@ function App() {
   const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
   const [showCollisionDebug, setShowCollisionDebug] = useState(true);
   const [showGridDebug, setShowGridDebug] = useState(false);
+  const [showAttackRangeDebug, setShowAttackRangeDebug] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
@@ -138,6 +139,7 @@ function App() {
           showGameAreaDebug={showGameAreaDebug}
           showCollisionDebug={showCollisionDebug}
           showGridDebug={showGridDebug}
+          showAttackRangeDebug={showAttackRangeDebug}
           buildMode={buildMode}
           onPlaceBuilding={handlePlaceBuilding}
           onSelect={setSelection}
@@ -255,6 +257,8 @@ function App() {
             onToggleCollisionDebug={() => setShowCollisionDebug((prev) => !prev)}
             showGridDebug={showGridDebug}
             onToggleGridDebug={() => setShowGridDebug((prev) => !prev)}
+            showAttackRangeDebug={showAttackRangeDebug}
+            onToggleAttackRangeDebug={() => setShowAttackRangeDebug((prev) => !prev)}
             castleHp={displayCastleHp}
             unitsCount={unitsCount}
             lastMessage={lastMessage}

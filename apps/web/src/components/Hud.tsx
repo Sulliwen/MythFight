@@ -26,6 +26,8 @@ type HudProps = {
   onToggleCollisionDebug: () => void;
   showGridDebug: boolean;
   onToggleGridDebug: () => void;
+  showAttackRangeDebug: boolean;
+  onToggleAttackRangeDebug: () => void;
   castleHp: {
     player1: number;
     player2: number;
@@ -79,6 +81,8 @@ export function Hud(props: HudProps) {
     onToggleCollisionDebug,
     showGridDebug,
     onToggleGridDebug,
+    showAttackRangeDebug,
+    onToggleAttackRangeDebug,
     castleHp,
     unitsCount,
     lastMessage,
@@ -244,6 +248,16 @@ export function Hud(props: HudProps) {
             onClick={onToggleCollisionDebug}
           >
             {showCollisionDebug ? "on" : "off"}
+          </button>
+        </div>
+        <div className="hud-row">
+          <span>Portee d'attaque</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showAttackRangeDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onToggleAttackRangeDebug}
+          >
+            {showAttackRangeDebug ? "on" : "off"}
           </button>
         </div>
         <div className="hud-row">
