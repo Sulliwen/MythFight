@@ -1,4 +1,5 @@
-import type { PlayerId } from "../types";
+import { useState } from "react";
+import type { PlayerId, SnapshotMsg } from "../types";
 import { useDraggablePanel } from "../hooks/useDraggablePanel";
 
 type HudProps = {
@@ -30,6 +31,9 @@ type HudProps = {
   onToggleAttackRangeDebug: () => void;
   showVisionDebug: boolean;
   onToggleVisionDebug: () => void;
+  onToggleAllOverlays: (on: boolean) => void;
+  onUpdateCreatureStats: (creatureId: string, stats: Record<string, number>) => void;
+  snapshots: SnapshotMsg[];
   castleHp: {
     player1: number;
     player2: number;
@@ -37,6 +41,55 @@ type HudProps = {
   unitsCount: number;
   lastMessage: string;
 };
+
+type StatDef = { key: string; label: string; min: number; max: number; step: number };
+
+const GOLEM_STAT_DEFS: StatDef[] = [
+  { key: "hp", label: "PV", min: 1, max: 1000, step: 1 },
+  { key: "moveSpeedPerTick", label: "Vitesse", min: 1, max: 30, step: 1 },
+  { key: "attackDamage", label: "Degats", min: 1, max: 200, step: 1 },
+  { key: "attackRange", label: "Portee atk", min: 5, max: 200, step: 5 },
+  { key: "attackIntervalTicks", label: "Vit. attaque", min: 2, max: 100, step: 1 },
+  { key: "hitboxRadius", label: "Hitbox R", min: 4, max: 50, step: 1 },
+  { key: "visionRange", label: "Vision", min: 10, max: 500, step: 10 },
+];
+
+function CreatureStatsEditor({ initialStats, onUpdate }: { initialStats: Record<string, number>; onUpdate: (creatureId: string, stats: Record<string, number>) => void }) {
+  const [values, setValues] = useState<Record<string, number>>(initialStats);
+
+  const handleChange = (key: string, val: number) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+    onUpdate("golem", { [key]: val });
+  };
+
+  return (
+    <>
+      {GOLEM_STAT_DEFS.map((def) => (
+        <div key={def.key} className="hud-row hud-row--stat-editor">
+          <span className="hud-stat-label">{def.label}</span>
+          <input
+            type="range"
+            className="hud-stat-range"
+            min={def.min}
+            max={def.max}
+            step={def.step}
+            value={values[def.key]}
+            onChange={(e) => handleChange(def.key, Number(e.target.value))}
+          />
+          <input
+            type="number"
+            className="hud-stat-number"
+            min={def.min}
+            max={def.max}
+            step={def.step}
+            value={values[def.key]}
+            onChange={(e) => handleChange(def.key, Number(e.target.value))}
+          />
+        </div>
+      ))}
+    </>
+  );
+}
 
 function LagSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   return (
@@ -87,6 +140,9 @@ export function Hud(props: HudProps) {
     onToggleAttackRangeDebug,
     showVisionDebug,
     onToggleVisionDebug,
+    onToggleAllOverlays,
+    onUpdateCreatureStats,
+    snapshots,
     castleHp,
     unitsCount,
     lastMessage,
@@ -205,6 +261,31 @@ export function Hud(props: HudProps) {
       <details className="hud-submenu">
         <summary>Overlays</summary>
         <div className="hud-row">
+          <span>Tout</span>
+          {(() => {
+            const allOn = showHitboxDebug && showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug;
+            const allOff = !showHitboxDebug && !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug;
+            return (
+              <>
+                <button
+                  type="button"
+                  className={`hud-inline-toggle ${allOn ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+                  onClick={() => onToggleAllOverlays(true)}
+                >
+                  on
+                </button>
+                <button
+                  type="button"
+                  className={`hud-inline-toggle ${allOff ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+                  onClick={() => onToggleAllOverlays(false)}
+                >
+                  off
+                </button>
+              </>
+            );
+          })()}
+        </div>
+        <div className="hud-row">
           <span>Afficher hitbox</span>
           <button
             type="button"
@@ -284,6 +365,17 @@ export function Hud(props: HudProps) {
             {showGridDebug ? "on" : "off"}
           </button>
         </div>
+      </details>
+
+      <details className="hud-submenu">
+        <summary>Golem Stats</summary>
+        {(() => {
+          const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+          const serverGolem = latest?.creatureStats?.golem;
+          if (!serverGolem) return <span className="hud-last-message">En attente du serveur...</span>;
+          const initial = serverGolem as unknown as Record<string, number>;
+          return <CreatureStatsEditor key="golem" initialStats={initial} onUpdate={onUpdateCreatureStats} />;
+        })()}
       </details>
     </aside>
   );

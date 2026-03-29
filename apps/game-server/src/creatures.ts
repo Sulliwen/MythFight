@@ -37,10 +37,10 @@ export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
   golem: {
     hp: 100,
-    moveSpeedPerTick: 8,
-    attackDamage: 2,
-    attackRange: 20,
-    attackIntervalTicks: 20,
+    moveSpeedPerTick: 1,
+    attackDamage: 50,
+    attackRange: 5,
+    attackIntervalTicks: 100,
     attackAnimationFrameCount: 6,
     attackHitFrameIndex: 3, // 0-based -> frame 4/6
     hitboxRadius: 12,
@@ -50,6 +50,13 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
 
 export function getCreatureStats(creatureId: CreatureId): CreatureStats {
   return CREATURE_STATS[creatureId];
+}
+
+export function updateCreatureStats(creatureId: CreatureId, partial: Partial<CreatureStats>): void {
+  const stats = CREATURE_STATS[creatureId];
+  if (!stats) return;
+  Object.assign(stats, partial);
+  console.log(`[updateCreatureStats] ${creatureId}:`, stats);
 }
 
 export function getAttackHitOffsetTicks(creatureId: CreatureId): number {

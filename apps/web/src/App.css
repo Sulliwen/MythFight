@@ -214,6 +214,29 @@
 
 /* ── Command Bar (WC3-style bottom panel) ── */
 
+.cmd-bar-wrapper {
+  position: relative;
+}
+
+.cmd-bar-toggle {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  height: 22px;
+  padding: 0 10px;
+  font-size: 11px;
+  color: #cbd5e1;
+  background: rgba(8, 12, 22, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.cmd-bar-toggle:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+
 .cmd-bar {
   display: grid;
   grid-template-columns: 160px 1fr 200px;
@@ -328,6 +351,7 @@
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 4px;
   background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
   cursor: pointer;
   padding: 4px;
   transition: border-color 120ms, background 120ms;
@@ -771,6 +795,46 @@
 .hud-inline-toggle--off {
   border-color: rgba(148, 163, 184, 0.35);
   opacity: 0.8;
+}
+
+.hud-row--stat-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.hud-stat-label {
+  font-size: 10px;
+  color: #94a3b8;
+  min-width: 62px;
+  flex-shrink: 0;
+}
+
+.hud-stat-range {
+  flex: 1;
+  height: 12px;
+  min-width: 60px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.hud-stat-number {
+  width: 48px;
+  font-size: 10px;
+  font-family: monospace;
+  text-align: right;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+  color: #e2e8f0;
+  padding: 1px 3px;
+  flex-shrink: 0;
+}
+
+.hud-stat-number:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.6);
 }
 
 .hud-row--header {

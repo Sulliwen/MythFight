@@ -31,9 +31,10 @@ function App() {
   const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(true);
   const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
   const [showCollisionDebug, setShowCollisionDebug] = useState(true);
-  const [showGridDebug, setShowGridDebug] = useState(false);
+  const [showGridDebug, setShowGridDebug] = useState(true);
   const [showAttackRangeDebug, setShowAttackRangeDebug] = useState(true);
   const [showVisionDebug, setShowVisionDebug] = useState(true);
+  const [cmdBarVisible, setCmdBarVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
@@ -63,6 +64,7 @@ function App() {
     sendPlaceBuilding,
     sendToggleProduction,
     sendForceSpawn,
+    sendUpdateCreatureStats,
   } = useGameSocket(controlledPlayer);
 
   useEffect(() => {
@@ -226,16 +228,27 @@ function App() {
 
         <div className="hud-overlay__spacer" />
 
-        <CommandBar
-          buildModeActive={buildMode.active}
-          onToggleBuildMode={toggleBuildMode}
-          disabled={status !== "connected"}
-          selection={selection}
-          snapshots={snapshots}
-          controlledPlayer={controlledPlayer}
-          onToggleProduction={sendToggleProduction}
-          onForceSpawn={sendForceSpawn}
-        />
+        <div className="cmd-bar-wrapper">
+          <button
+            type="button"
+            className="cmd-bar-toggle"
+            onClick={() => setCmdBarVisible((prev) => !prev)}
+          >
+            {cmdBarVisible ? "\u25BC" : "\u25B2"}
+          </button>
+          {cmdBarVisible && (
+            <CommandBar
+              buildModeActive={buildMode.active}
+              onToggleBuildMode={toggleBuildMode}
+              disabled={status !== "connected"}
+              selection={selection}
+              snapshots={snapshots}
+              controlledPlayer={controlledPlayer}
+              onToggleProduction={sendToggleProduction}
+              onForceSpawn={sendForceSpawn}
+            />
+          )}
+        </div>
 
         {debugPanelVisible && (
           <Hud
@@ -267,6 +280,18 @@ function App() {
             onToggleAttackRangeDebug={() => setShowAttackRangeDebug((prev) => !prev)}
             showVisionDebug={showVisionDebug}
             onToggleVisionDebug={() => setShowVisionDebug((prev) => !prev)}
+            onToggleAllOverlays={(on: boolean) => {
+              setShowHitboxDebug(on);
+              setShowImageOutlineDebug(on);
+              setShowBuildZoneDebug(on);
+              setShowGameAreaDebug(on);
+              setShowCollisionDebug(on);
+              setShowGridDebug(on);
+              setShowAttackRangeDebug(on);
+              setShowVisionDebug(on);
+            }}
+            onUpdateCreatureStats={sendUpdateCreatureStats}
+            snapshots={snapshots}
             castleHp={displayCastleHp}
             unitsCount={unitsCount}
             lastMessage={lastMessage}

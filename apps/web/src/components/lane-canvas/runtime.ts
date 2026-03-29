@@ -463,30 +463,30 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
             .stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
         }
 
-        // Draw attack range circles and attack target points
-        if (showAttackRangeDebugRef.current) {
-          const attackRangeScreen = worldToScreenRadius(CREATURE_COL_RADIUS + CREATURE_ATTACK_RANGE, gameAreaWidth);
-          const RANGE_COLOR = 0xff8800;
-          const ATK_POINT_COLOR = 0xff0000;
-          const latestForRange = pair ? pair.b.units : [];
+      }
 
-          for (const u of projectedUnits) {
-            collisionDebugGraphics.circle(u.x, u.y, attackRangeScreen)
-              .stroke({ color: RANGE_COLOR, width: 1, alpha: 0.5 });
-          }
+      // Draw attack range circles and attack target points
+      if (showAttackRangeDebugRef.current) {
+        const attackRangeScreen = worldToScreenRadius(CREATURE_COL_RADIUS + CREATURE_ATTACK_RANGE, gameAreaWidth);
+        const RANGE_COLOR = 0xff8800;
+        const ATK_POINT_COLOR = 0xff0000;
+        const latestForRange = pair ? pair.b.units : [];
 
-          // Draw attack target points for attacking units (castle or unit)
-          for (const u of latestForRange) {
-            if ((u.state !== "attacking" && u.state !== "attacking_unit") || u.attackTargetX == null || u.attackTargetY == null) continue;
-            const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-            const { screenX: tx, screenY: ty } = worldToScreen(u.attackTargetX, u.attackTargetY, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-            // Line from unit to attack point
-            collisionDebugGraphics.moveTo(ux, uy).lineTo(tx, ty).stroke({ color: ATK_POINT_COLOR, width: 1, alpha: 0.7 });
-            // Attack target point
-            collisionDebugGraphics.circle(tx, ty, 4).fill({ color: ATK_POINT_COLOR, alpha: 0.9 });
-          }
+        for (const u of projectedUnits) {
+          collisionDebugGraphics.circle(u.x, u.y, attackRangeScreen)
+            .stroke({ color: RANGE_COLOR, width: 1, alpha: 0.5 });
         }
 
+        // Draw attack target points for attacking units (castle or unit)
+        for (const u of latestForRange) {
+          if ((u.state !== "attacking" && u.state !== "attacking_unit") || u.attackTargetX == null || u.attackTargetY == null) continue;
+          const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+          const { screenX: tx, screenY: ty } = worldToScreen(u.attackTargetX, u.attackTargetY, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+          // Line from unit to attack point
+          collisionDebugGraphics.moveTo(ux, uy).lineTo(tx, ty).stroke({ color: ATK_POINT_COLOR, width: 1, alpha: 0.7 });
+          // Attack target point
+          collisionDebugGraphics.circle(tx, ty, 4).fill({ color: ATK_POINT_COLOR, alpha: 0.9 });
+        }
       }
     }
 
