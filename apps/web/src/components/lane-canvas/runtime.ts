@@ -10,7 +10,7 @@ import {
   WORLD_MIN_Y,
 } from "./constants";
 import { BuildingSpriteLayer } from "./building-sprite-layer";
-import { defineGameHitboxes, drawHitboxOverlay, hitTest, type GameHitbox } from "./hitboxes";
+import { defineGameHitboxes, hitTest, type GameHitbox } from "./hitboxes";
 import { drawImageOutlines } from "./image-outlines";
 import { getInterpolationPair, interpolateUnits } from "./interpolation";
 import { clamp, getCanvasSize } from "./math";
@@ -50,11 +50,18 @@ function projectUnits(
 const BUILDING_HITBOX_W = 70;
 const BUILDING_HITBOX_H = 70;
 const CREATURE_COL_RADIUS = 12;
+// Castle visual position (fixed — matches server)
+const CASTLE_VISUAL_CENTER_Y = 280;
+const CASTLE_VISUAL_H = 100;
+const CASTLE_P1_X = 120;
+const CASTLE_P2_X = 880;
+// Fallback castle hitbox (used before first snapshot arrives)
 const CASTLE_COL_W = 100;
 const CASTLE_COL_H = 60;
-const CASTLE_VISUAL_H = 100;
-const CASTLE_COL_P1 = { x: 120, y: 300 };
-const CASTLE_COL_P2 = { x: 880, y: 300 };
+const CASTLE_COL_BOTTOM_INSET = 20;
+const CASTLE_COL_BOTTOM = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2 - CASTLE_COL_BOTTOM_INSET;
+const CASTLE_COL_P1 = { x: CASTLE_P1_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
+const CASTLE_COL_P2 = { x: CASTLE_P2_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
 const CREATURE_ATTACK_RANGE = 20; // must match server CreatureStats.attackRange
 const CREATURE_VISION_RANGE = 100; // must match server CreatureStats.visionRange
 const PATHFINDING_CELL_SIZE = 20;
@@ -133,7 +140,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   const {
     host,
     snapshotsRef,
-    showHitboxDebugRef,
     showImageOutlineDebugRef,
     showBuildZoneDebugRef,
     showGameAreaDebugRef,
@@ -154,7 +160,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let castlePlayer2Sprite: Sprite | null = null;
   let unitContainer: Container | null = null;
   let buildingContainer: Container | null = null;
-  let hitboxGraphics: Graphics | null = null;
   let imageOutlineGraphics: Graphics | null = null;
   let unitSpriteLayer: UnitSpriteLayer | null = null;
   let buildingSpriteLayer: BuildingSpriteLayer | null = null;
@@ -230,7 +235,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       !castlePlayer2Sprite ||
       !unitSpriteLayer ||
       !buildingSpriteLayer ||
-      !hitboxGraphics ||
       !imageOutlineGraphics
     ) {
       return;
@@ -246,42 +250,32 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const gameAreaHeight = height;
     currentGameArea = { x: gameAreaX, y: gameAreaY, width: gameAreaWidth, height: gameAreaHeight };
 
-    // Position castles — visual center is shifted up from hitbox center so bottoms align
-    const visualCenterOffset = (CASTLE_VISUAL_H - CASTLE_COL_H) / 2;
-    const castle1Visual = worldRectToScreen(CASTLE_COL_P1.x, CASTLE_COL_P1.y - visualCenterOffset, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castle2Visual = worldRectToScreen(CASTLE_COL_P2.x, CASTLE_COL_P2.y - visualCenterOffset, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    // Read castle hitbox rects from server snapshot (top-left corner + size)
+    const latestSnapshot = snapshotsRef.current.length > 0 ? snapshotsRef.current[snapshotsRef.current.length - 1] : null;
+    const cr1 = latestSnapshot?.castleRects?.player1 ?? CASTLE_COL_P1;
+    const cr2 = latestSnapshot?.castleRects?.player2 ?? CASTLE_COL_P2;
 
-    // Castle sprite sizing: fit the sprite to the visual dimensions
-    const castleWidthP1 = castle1Visual.w;
-    const castleHeightP1 = castle1Visual.h;
-    const castleWidthP2 = castle2Visual.w;
-    const castleHeightP2 = castle2Visual.h;
+    // Castle hitbox rects (from server snapshot, top-left + size)
+    const castle1Hitbox = worldRectToScreen(cr1.x + cr1.w / 2, cr1.y + cr1.h / 2, cr1.w, cr1.h, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    const castle2Hitbox = worldRectToScreen(cr2.x + cr2.w / 2, cr2.y + cr2.h / 2, cr2.w, cr2.h, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
 
-    // Sprite anchor is (0.5, 1), so position at center-x, bottom-y of the visual rect
+    // Castle sprite: fixed visual position, independent of hitbox
+    const castle1Visual = worldRectToScreen(CASTLE_P1_X, CASTLE_VISUAL_CENTER_Y, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    const castle2Visual = worldRectToScreen(CASTLE_P2_X, CASTLE_VISUAL_CENTER_Y, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+
+    // Sprite anchor is (0.5, 1) — position at center-x, bottom-y of visual rect
     const leftCastleX = castle1Visual.x + castle1Visual.w / 2;
     const leftCastleBaseY = castle1Visual.y + castle1Visual.h;
     const rightCastleX = castle2Visual.x + castle2Visual.w / 2;
     const rightCastleBaseY = castle2Visual.y + castle2Visual.h;
 
     castlePlayer1Sprite.position.set(leftCastleX, leftCastleBaseY);
-    castlePlayer1Sprite.width = castleWidthP1;
-    castlePlayer1Sprite.height = castleHeightP1;
+    castlePlayer1Sprite.width = castle1Visual.w;
+    castlePlayer1Sprite.height = castle1Visual.h;
 
     castlePlayer2Sprite.position.set(rightCastleX, rightCastleBaseY);
-    castlePlayer2Sprite.width = castleWidthP2;
-    castlePlayer2Sprite.height = castleHeightP2;
-
-    // Castle hitbox rects for selection/outlines — directly from hitbox center
-    const castle1Hitbox = worldRectToScreen(CASTLE_COL_P1.x, CASTLE_COL_P1.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castle2Hitbox = worldRectToScreen(CASTLE_COL_P2.x, CASTLE_COL_P2.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castlePlayer1OpaqueX = castle1Hitbox.x;
-    const castlePlayer1OpaqueY = castle1Hitbox.y;
-    const castlePlayer1OpaqueWidth = castle1Hitbox.w;
-    const castlePlayer1OpaqueHeight = castle1Hitbox.h;
-    const castlePlayer2OpaqueX = castle2Hitbox.x;
-    const castlePlayer2OpaqueY = castle2Hitbox.y;
-    const castlePlayer2OpaqueWidth = castle2Hitbox.w;
-    const castlePlayer2OpaqueHeight = castle2Hitbox.h;
+    castlePlayer2Sprite.width = castle2Visual.w;
+    castlePlayer2Sprite.height = castle2Visual.h;
 
     // Draw castle HP bars
     const CASTLE_HP_MAX = 1000;
@@ -309,8 +303,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
           castleHpGraphics!.rect(barX, barY, CASTLE_HP_BAR_W, CASTLE_HP_BAR_H);
           castleHpGraphics!.stroke({ color: 0x475569, width: 1, alpha: 0.6 });
         };
-        drawCastleHpBar(leftCastleX, castlePlayer1OpaqueY, castleHp.player1);
-        drawCastleHpBar(rightCastleX, castlePlayer2OpaqueY, castleHp.player2);
+        drawCastleHpBar(leftCastleX, castle1Hitbox.y, castleHp.player1);
+        drawCastleHpBar(rightCastleX, castle2Hitbox.y, castleHp.player2);
       }
     }
 
@@ -418,8 +412,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         height: b.spriteHeight,
       }));
       drawImageOutlines(imageOutlineGraphics, [
-        { x: castlePlayer1OpaqueX, y: castlePlayer1OpaqueY, width: castlePlayer1OpaqueWidth, height: castlePlayer1OpaqueHeight },
-        { x: castlePlayer2OpaqueX, y: castlePlayer2OpaqueY, width: castlePlayer2OpaqueWidth, height: castlePlayer2OpaqueHeight },
+        { x: castle1Hitbox.x, y: castle1Hitbox.y, width: castle1Hitbox.w, height: castle1Hitbox.h },
+        { x: castle2Hitbox.x, y: castle2Hitbox.y, width: castle2Hitbox.w, height: castle2Hitbox.h },
         ...buildingOutlines,
       ]);
     } else {
@@ -428,19 +422,13 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     currentHitboxes = defineGameHitboxes({
       castles: {
-        player1: { x: castlePlayer1OpaqueX, y: castlePlayer1OpaqueY, width: castlePlayer1OpaqueWidth, height: castlePlayer1OpaqueHeight },
-        player2: { x: castlePlayer2OpaqueX, y: castlePlayer2OpaqueY, width: castlePlayer2OpaqueWidth, height: castlePlayer2OpaqueHeight },
+        player1: { x: castle1Hitbox.x, y: castle1Hitbox.y, width: castle1Hitbox.w, height: castle1Hitbox.h },
+        player2: { x: castle2Hitbox.x, y: castle2Hitbox.y, width: castle2Hitbox.w, height: castle2Hitbox.h },
       },
       buildings: projectedBuildings,
       units: projectedUnits,
       unitHitboxRadius: unitHitboxScreenRadius,
     });
-
-    if (showHitboxDebugRef.current) {
-      drawHitboxOverlay(hitboxGraphics, currentHitboxes);
-    } else {
-      hitboxGraphics.clear();
-    }
 
     // Draw collision hitboxes from server world coordinates (yellow)
     if (collisionDebugGraphics) {
@@ -448,10 +436,9 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       if (showCollisionDebugRef.current) {
         const COL_COLOR = 0xffff00;
 
-        // Castle collision rects
-        for (const cp of [CASTLE_COL_P1, CASTLE_COL_P2]) {
-          const cr = worldRectToScreen(cp.x, cp.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-          collisionDebugGraphics.rect(cr.x, cr.y, cr.w, cr.h).stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
+        // Castle collision rects (from server snapshot)
+        for (const ch of [castle1Hitbox, castle2Hitbox]) {
+          collisionDebugGraphics.rect(ch.x, ch.y, ch.w, ch.h).stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
         }
 
         // Building collision rects — same as selection (sprite-based, anchor 0.5/0.9)
@@ -642,7 +629,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     ghostSprite.visible = false;
 
     imageOutlineGraphics = new Graphics();
-    hitboxGraphics = new Graphics();
     collisionDebugGraphics = new Graphics();
     gridDebugGraphics = new Graphics();
     visionDebugGraphics = new Graphics();
@@ -660,7 +646,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     sceneContainer.addChild(unitContainer);
     sceneContainer.addChild(ghostSprite);
     sceneContainer.addChild(imageOutlineGraphics);
-    sceneContainer.addChild(hitboxGraphics);
     sceneContainer.addChild(visionDebugGraphics);
     sceneContainer.addChild(collisionDebugGraphics);
 

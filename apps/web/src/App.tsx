@@ -26,7 +26,6 @@ function App() {
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
   const [debugPanelVisible, setDebugPanelVisible] = useState(false);
-  const [showHitboxDebug, setShowHitboxDebug] = useState(true);
   const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(true);
   const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(true);
   const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
@@ -138,7 +137,7 @@ function App() {
       <section className="game-stage" aria-label="Game viewport">
         <LaneCanvas
           snapshots={snapshots}
-          showHitboxDebug={showHitboxDebug}
+
           showImageOutlineDebug={showImageOutlineDebug}
           showBuildZoneDebug={showBuildZoneDebug}
           showGameAreaDebug={showGameAreaDebug}
@@ -264,8 +263,6 @@ function App() {
             onSimulatedLagChange={setSimulatedLagMs}
             showSnapshotDebug={showSnapshotDebug}
             onToggleSnapshotDebug={toggleSnapshotDebug}
-            showHitboxDebug={showHitboxDebug}
-            onToggleHitboxDebug={() => setShowHitboxDebug((prev) => !prev)}
             showImageOutlineDebug={showImageOutlineDebug}
             onToggleImageOutlineDebug={() => setShowImageOutlineDebug((prev) => !prev)}
             showBuildZoneDebug={showBuildZoneDebug}
@@ -281,7 +278,6 @@ function App() {
             showVisionDebug={showVisionDebug}
             onToggleVisionDebug={() => setShowVisionDebug((prev) => !prev)}
             onToggleAllOverlays={(on: boolean) => {
-              setShowHitboxDebug(on);
               setShowImageOutlineDebug(on);
               setShowBuildZoneDebug(on);
               setShowGameAreaDebug(on);

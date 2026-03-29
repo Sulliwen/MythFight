@@ -9,16 +9,22 @@ export const LANE_MAX_X = 1000;
 export const LANE_MIN_Y = 0;
 export const LANE_MAX_Y = 560;
 
-// Fixed castle world positions and hitbox
+// Castle visual position (fixed — never changes)
 export const CASTLE_PLAYER1_X = 120;
-export const CASTLE_PLAYER1_Y = 300;
 export const CASTLE_PLAYER2_X = 880;
-export const CASTLE_PLAYER2_Y = 300;
+export const CASTLE_VISUAL_CENTER_Y = 280;
+export const CASTLE_VISUAL_H = 100;
+
+// Castle hitbox: offsets relative to the visual rect
 export const CASTLE_HITBOX_W = 100;
 export const CASTLE_HITBOX_H = 60;
+export const CASTLE_HITBOX_BOTTOM_INSET =12; // how far up from visual bottom the hitbox bottom sits
+
+const CASTLE_VISUAL_BOTTOM = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2; // 330
+const CASTLE_HITBOX_BOTTOM = CASTLE_VISUAL_BOTTOM - CASTLE_HITBOX_BOTTOM_INSET;
 const CASTLE_RECTS = [
-  { owner: "player1" as const, x: CASTLE_PLAYER1_X - CASTLE_HITBOX_W / 2, y: CASTLE_PLAYER1_Y - CASTLE_HITBOX_H / 2, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
-  { owner: "player2" as const, x: CASTLE_PLAYER2_X - CASTLE_HITBOX_W / 2, y: CASTLE_PLAYER2_Y - CASTLE_HITBOX_H / 2, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
+  { owner: "player1" as const, x: CASTLE_PLAYER1_X - CASTLE_HITBOX_W / 2, y: CASTLE_HITBOX_BOTTOM - CASTLE_HITBOX_H, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
+  { owner: "player2" as const, x: CASTLE_PLAYER2_X - CASTLE_HITBOX_W / 2, y: CASTLE_HITBOX_BOTTOM - CASTLE_HITBOX_H, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
 ];
 
 export function createWorld(): WorldState {
@@ -857,6 +863,10 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
     castle: {
       player1: world.castle.player1,
       player2: world.castle.player2,
+    },
+    castleRects: {
+      player1: { x: CASTLE_RECTS[0].x, y: CASTLE_RECTS[0].y, w: CASTLE_RECTS[0].w, h: CASTLE_RECTS[0].h },
+      player2: { x: CASTLE_RECTS[1].x, y: CASTLE_RECTS[1].y, w: CASTLE_RECTS[1].w, h: CASTLE_RECTS[1].h },
     },
     units: world.units.map((u) => {
       const creatureStats = getCreatureStats(u.creatureId);

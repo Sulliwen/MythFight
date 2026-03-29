@@ -1,7 +1,5 @@
-import type { Graphics } from "pixi.js";
 import type { ProjectedBuilding, ProjectedUnit } from "./types";
 
-const HITBOX_COLOR = 0xff0000;
 const CASTLE_HITBOX_INSET_PX = 3;
 const MIN_HITBOX_SIZE_PX = 2;
 
@@ -113,25 +111,4 @@ export function hitTest(x: number, y: number, hitboxes: GameHitbox[]): GameHitbo
     }
   }
   return null;
-}
-
-export function drawHitboxOverlay(graphics: Graphics, hitboxes: GameHitbox[]): void {
-  graphics.clear();
-
-  for (const hitbox of hitboxes) {
-    if (hitbox.kind === "rect") {
-      graphics.rect(hitbox.x, hitbox.y, hitbox.width, hitbox.height).stroke({
-        color: HITBOX_COLOR,
-        width: 2,
-        alpha: 0.92,
-      });
-      continue;
-    }
-
-    graphics.circle(hitbox.x, hitbox.y, hitbox.radius).stroke({
-      color: HITBOX_COLOR,
-      width: 2,
-      alpha: 0.92,
-    });
-  }
 }

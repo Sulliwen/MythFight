@@ -9,7 +9,6 @@ export type BuildMode = {
 
 export type LaneCanvasProps = {
   snapshots: SnapshotMsg[];
-  showHitboxDebug?: boolean;
   showImageOutlineDebug?: boolean;
   showBuildZoneDebug?: boolean;
   showGameAreaDebug?: boolean;
@@ -25,7 +24,6 @@ export type LaneCanvasProps = {
 
 export type LaneCanvasStateRefs = {
   snapshotsRef: MutableRefObject<SnapshotMsg[]>;
-  showHitboxDebugRef: MutableRefObject<boolean>;
   showImageOutlineDebugRef: MutableRefObject<boolean>;
   showBuildZoneDebugRef: MutableRefObject<boolean>;
   showGameAreaDebugRef: MutableRefObject<boolean>;

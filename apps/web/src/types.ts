@@ -46,6 +46,23 @@ export type ErrorMsg = {
   reason: string;
 };
 
+export type CreatureStatsSnapshot = {
+  hp: number;
+  moveSpeedPerTick: number;
+  attackDamage: number;
+  attackRange: number;
+  attackIntervalTicks: number;
+  hitboxRadius: number;
+  visionRange: number;
+};
+
+export type CastleRect = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 export type SnapshotMsg = {
   type: "snapshot";
   tick: number;
@@ -54,8 +71,13 @@ export type SnapshotMsg = {
     player1: number;
     player2: number;
   };
+  castleRects?: {
+    player1: CastleRect;
+    player2: CastleRect;
+  };
   units: Unit[];
   buildings: BuildingSnapshot[];
+  creatureStats?: Record<string, CreatureStatsSnapshot>;
 };
 
 export type PongMsg = {

@@ -75,6 +75,23 @@ export type ErrorMessage = {
   reason: string;
 };
 
+export type CreatureStatsSnapshot = {
+  hp: number;
+  moveSpeedPerTick: number;
+  attackDamage: number;
+  attackRange: number;
+  attackIntervalTicks: number;
+  hitboxRadius: number;
+  visionRange: number;
+};
+
+export type CastleRect = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 export type SnapshotMessage = {
   type: "snapshot";
   tick: number;
@@ -83,6 +100,11 @@ export type SnapshotMessage = {
     player1: number;
     player2: number;
   };
+  castleRects: {
+    player1: CastleRect;
+    player2: CastleRect;
+  };
   units: UnitSnapshot[];
   buildings: BuildingSnapshot[];
+  creatureStats: Record<string, CreatureStatsSnapshot>;
 };

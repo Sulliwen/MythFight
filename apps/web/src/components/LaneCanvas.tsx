@@ -8,7 +8,6 @@ const DEFAULT_BUILD_MODE: BuildMode = { active: false, creatureId: "golem" };
 
 export function LaneCanvas({
   snapshots,
-  showHitboxDebug = false,
   showImageOutlineDebug = false,
   showBuildZoneDebug = true,
   showGameAreaDebug = true,
@@ -23,7 +22,6 @@ export function LaneCanvas({
 }: LaneCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const snapshotsRef = useRef(snapshots);
-  const showHitboxDebugRef = useRef(showHitboxDebug);
   const showImageOutlineDebugRef = useRef(showImageOutlineDebug);
   const showBuildZoneDebugRef = useRef(showBuildZoneDebug);
   const showGameAreaDebugRef = useRef(showGameAreaDebug);
@@ -39,10 +37,6 @@ export function LaneCanvas({
   useEffect(() => {
     snapshotsRef.current = snapshots;
   }, [snapshots]);
-
-  useEffect(() => {
-    showHitboxDebugRef.current = showHitboxDebug;
-  }, [showHitboxDebug]);
 
   useEffect(() => {
     showImageOutlineDebugRef.current = showImageOutlineDebug;
@@ -95,7 +89,6 @@ export function LaneCanvas({
     return startLaneCanvasRuntime({
       host,
       snapshotsRef,
-      showHitboxDebugRef,
       showImageOutlineDebugRef,
       showBuildZoneDebugRef,
       showGameAreaDebugRef,

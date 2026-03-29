@@ -15,8 +15,6 @@ type HudProps = {
   onSimulatedLagChange: (value: number) => void;
   showSnapshotDebug: boolean;
   onToggleSnapshotDebug: () => void;
-  showHitboxDebug: boolean;
-  onToggleHitboxDebug: () => void;
   showImageOutlineDebug: boolean;
   onToggleImageOutlineDebug: () => void;
   showBuildZoneDebug: boolean;
@@ -124,8 +122,6 @@ export function Hud(props: HudProps) {
     onSimulatedLagChange,
     showSnapshotDebug,
     onToggleSnapshotDebug,
-    showHitboxDebug,
-    onToggleHitboxDebug,
     showImageOutlineDebug,
     onToggleImageOutlineDebug,
     showBuildZoneDebug,
@@ -263,8 +259,8 @@ export function Hud(props: HudProps) {
         <div className="hud-row">
           <span>Tout</span>
           {(() => {
-            const allOn = showHitboxDebug && showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug;
-            const allOff = !showHitboxDebug && !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug;
+            const allOn = showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug;
+            const allOff = !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug;
             return (
               <>
                 <button
@@ -284,16 +280,6 @@ export function Hud(props: HudProps) {
               </>
             );
           })()}
-        </div>
-        <div className="hud-row">
-          <span>Afficher hitbox</span>
-          <button
-            type="button"
-            className={`hud-inline-toggle ${showHitboxDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
-            onClick={onToggleHitboxDebug}
-          >
-            {showHitboxDebug ? "on" : "off"}
-          </button>
         </div>
         <div className="hud-row">
           <span>Contour images</span>
