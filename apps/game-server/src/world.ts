@@ -416,27 +416,8 @@ export function stepWorld(world: WorldState): void {
     unit.x += unit.vx;
     unit.y += unit.vy;
 
-    // Collision: unit vs buildings (circle vs rect)
-    for (const building of world.buildings) {
-      const bStats = getBuildingStats(building.creatureId);
-      const bx = building.x - bStats.hitboxWidth / 2;
-      const by = building.y - bStats.hitboxHeight / 2;
-      const sep = resolveCircleVsRect(unit.x, unit.y, r, bx, by, bStats.hitboxWidth, bStats.hitboxHeight);
-      if (sep) {
-        unit.x += sep.dx;
-        unit.y += sep.dy;
-      }
-    }
-
-    // Collision + attack: unit vs castles (circle vs rect)
+    // Attack check: enemy castle within attack range
     for (const cr of CASTLE_RECTS) {
-      const sep = resolveCircleVsRect(unit.x, unit.y, r, cr.x, cr.y, cr.w, cr.h);
-      if (sep) {
-        unit.x += sep.dx;
-        unit.y += sep.dy;
-      }
-
-      // Attack enemy castle when within attack range
       if (cr.owner !== unit.owner && unit.state === "moving") {
         const dSq = distSqToRect(unit.x, unit.y, cr.x, cr.y, cr.w, cr.h);
         const attackDist = r + creatureStats.attackRange;
@@ -450,36 +431,67 @@ export function stepWorld(world: WorldState): void {
     }
   }
 
-  // Collision: unit vs unit (circle vs circle, push apart)
-  for (let i = 0; i < world.units.length; i++) {
-    const a = world.units[i];
-    const ra = getCreatureStats(a.creatureId).hitboxRadius;
-    for (let j = i + 1; j < world.units.length; j++) {
-      const b = world.units[j];
-      const rb = getCreatureStats(b.creatureId).hitboxRadius;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const distSq = dx * dx + dy * dy;
-      const minDist = ra + rb;
-      if (distSq >= minDist * minDist || distSq === 0) continue;
+  // Iterative collision resolution — multiple passes to prevent push-through
+  const COLLISION_ITERATIONS = 4;
+  for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
+    // Unit vs unit (circle vs circle, push apart)
+    for (let i = 0; i < world.units.length; i++) {
+      const a = world.units[i];
+      const ra = getCreatureStats(a.creatureId).hitboxRadius;
+      for (let j = i + 1; j < world.units.length; j++) {
+        const b = world.units[j];
+        const rb = getCreatureStats(b.creatureId).hitboxRadius;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distSq = dx * dx + dy * dy;
+        const minDist = ra + rb;
+        if (distSq >= minDist * minDist || distSq === 0) continue;
 
-      const dist = Math.sqrt(distSq);
-      const overlap = minDist - dist;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      const half = overlap / 2;
-      a.x -= nx * half;
-      a.y -= ny * half;
-      b.x += nx * half;
-      b.y += ny * half;
+        const dist = Math.sqrt(distSq);
+        const overlap = minDist - dist;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const half = overlap / 2;
+        a.x -= nx * half;
+        a.y -= ny * half;
+        b.x += nx * half;
+        b.y += ny * half;
+      }
     }
-  }
 
-  // Clamp units within world bounds
-  for (const unit of world.units) {
-    const r = getCreatureStats(unit.creatureId).hitboxRadius;
-    unit.x = Math.max(LANE_MIN_X + r, Math.min(LANE_MAX_X - r, unit.x));
-    unit.y = Math.max(LANE_MIN_Y + r, Math.min(LANE_MAX_Y - r, unit.y));
+    // Unit vs buildings (push out)
+    for (const unit of world.units) {
+      const r = getCreatureStats(unit.creatureId).hitboxRadius;
+      for (const building of world.buildings) {
+        const bStats = getBuildingStats(building.creatureId);
+        const bx = building.x - bStats.hitboxWidth / 2;
+        const by = building.y - bStats.hitboxHeight / 2;
+        const sep = resolveCircleVsRect(unit.x, unit.y, r, bx, by, bStats.hitboxWidth, bStats.hitboxHeight);
+        if (sep) {
+          unit.x += sep.dx;
+          unit.y += sep.dy;
+        }
+      }
+    }
+
+    // Unit vs castles (push out)
+    for (const unit of world.units) {
+      const r = getCreatureStats(unit.creatureId).hitboxRadius;
+      for (const cr of CASTLE_RECTS) {
+        const sep = resolveCircleVsRect(unit.x, unit.y, r, cr.x, cr.y, cr.w, cr.h);
+        if (sep) {
+          unit.x += sep.dx;
+          unit.y += sep.dy;
+        }
+      }
+    }
+
+    // Clamp units within world bounds
+    for (const unit of world.units) {
+      const r = getCreatureStats(unit.creatureId).hitboxRadius;
+      unit.x = Math.max(LANE_MIN_X + r, Math.min(LANE_MAX_X - r, unit.x));
+      unit.y = Math.max(LANE_MIN_Y + r, Math.min(LANE_MAX_Y - r, unit.y));
+    }
   }
 
   // Re-check attack range after all collisions (push-apart may have moved units out of range)
