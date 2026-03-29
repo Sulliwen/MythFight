@@ -51,9 +51,10 @@ const BUILDING_HITBOX_W = 70;
 const BUILDING_HITBOX_H = 70;
 const CREATURE_COL_RADIUS = 12;
 const CASTLE_COL_W = 100;
-const CASTLE_COL_H = 100;
-const CASTLE_COL_P1 = { x: 120, y: 280 };
-const CASTLE_COL_P2 = { x: 880, y: 280 };
+const CASTLE_COL_H = 60;
+const CASTLE_VISUAL_H = 100;
+const CASTLE_COL_P1 = { x: 120, y: 300 };
+const CASTLE_COL_P2 = { x: 880, y: 300 };
 const CREATURE_ATTACK_RANGE = 20; // must match server CreatureStats.attackRange
 const CREATURE_VISION_RANGE = 100; // must match server CreatureStats.visionRange
 const PATHFINDING_CELL_SIZE = 20;
@@ -245,21 +246,22 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const gameAreaHeight = height;
     currentGameArea = { x: gameAreaX, y: gameAreaY, width: gameAreaWidth, height: gameAreaHeight };
 
-    // Position castles using world coordinates (same as buildings)
-    const castle1Screen = worldRectToScreen(CASTLE_COL_P1.x, CASTLE_COL_P1.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castle2Screen = worldRectToScreen(CASTLE_COL_P2.x, CASTLE_COL_P2.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    // Position castles — visual center is shifted up from hitbox center so bottoms align
+    const visualCenterOffset = (CASTLE_VISUAL_H - CASTLE_COL_H) / 2;
+    const castle1Visual = worldRectToScreen(CASTLE_COL_P1.x, CASTLE_COL_P1.y - visualCenterOffset, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    const castle2Visual = worldRectToScreen(CASTLE_COL_P2.x, CASTLE_COL_P2.y - visualCenterOffset, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
 
-    // Castle sprite sizing: fit the sprite to the world-unit hitbox dimensions
-    const castleWidthP1 = castle1Screen.w;
-    const castleHeightP1 = castle1Screen.h;
-    const castleWidthP2 = castle2Screen.w;
-    const castleHeightP2 = castle2Screen.h;
+    // Castle sprite sizing: fit the sprite to the visual dimensions
+    const castleWidthP1 = castle1Visual.w;
+    const castleHeightP1 = castle1Visual.h;
+    const castleWidthP2 = castle2Visual.w;
+    const castleHeightP2 = castle2Visual.h;
 
-    // Sprite anchor is (0.5, 1), so position at center-x, bottom-y of the hitbox rect
-    const leftCastleX = castle1Screen.x + castle1Screen.w / 2;
-    const leftCastleBaseY = castle1Screen.y + castle1Screen.h;
-    const rightCastleX = castle2Screen.x + castle2Screen.w / 2;
-    const rightCastleBaseY = castle2Screen.y + castle2Screen.h;
+    // Sprite anchor is (0.5, 1), so position at center-x, bottom-y of the visual rect
+    const leftCastleX = castle1Visual.x + castle1Visual.w / 2;
+    const leftCastleBaseY = castle1Visual.y + castle1Visual.h;
+    const rightCastleX = castle2Visual.x + castle2Visual.w / 2;
+    const rightCastleBaseY = castle2Visual.y + castle2Visual.h;
 
     castlePlayer1Sprite.position.set(leftCastleX, leftCastleBaseY);
     castlePlayer1Sprite.width = castleWidthP1;
@@ -269,15 +271,17 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     castlePlayer2Sprite.width = castleWidthP2;
     castlePlayer2Sprite.height = castleHeightP2;
 
-    // Castle hitbox rects for selection/outlines (same as collision now)
-    const castlePlayer1OpaqueX = castle1Screen.x;
-    const castlePlayer1OpaqueY = castle1Screen.y;
-    const castlePlayer1OpaqueWidth = castle1Screen.w;
-    const castlePlayer1OpaqueHeight = castle1Screen.h;
-    const castlePlayer2OpaqueX = castle2Screen.x;
-    const castlePlayer2OpaqueY = castle2Screen.y;
-    const castlePlayer2OpaqueWidth = castle2Screen.w;
-    const castlePlayer2OpaqueHeight = castle2Screen.h;
+    // Castle hitbox rects for selection/outlines — directly from hitbox center
+    const castle1Hitbox = worldRectToScreen(CASTLE_COL_P1.x, CASTLE_COL_P1.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    const castle2Hitbox = worldRectToScreen(CASTLE_COL_P2.x, CASTLE_COL_P2.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+    const castlePlayer1OpaqueX = castle1Hitbox.x;
+    const castlePlayer1OpaqueY = castle1Hitbox.y;
+    const castlePlayer1OpaqueWidth = castle1Hitbox.w;
+    const castlePlayer1OpaqueHeight = castle1Hitbox.h;
+    const castlePlayer2OpaqueX = castle2Hitbox.x;
+    const castlePlayer2OpaqueY = castle2Hitbox.y;
+    const castlePlayer2OpaqueWidth = castle2Hitbox.w;
+    const castlePlayer2OpaqueHeight = castle2Hitbox.h;
 
     // Draw castle HP bars
     const CASTLE_HP_MAX = 1000;
@@ -444,7 +448,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       if (showCollisionDebugRef.current) {
         const COL_COLOR = 0xffff00;
 
-        // Castle collision rects — from server world constants
+        // Castle collision rects
         for (const cp of [CASTLE_COL_P1, CASTLE_COL_P2]) {
           const cr = worldRectToScreen(cp.x, cp.y, CASTLE_COL_W, CASTLE_COL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
           collisionDebugGraphics.rect(cr.x, cr.y, cr.w, cr.h).stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });

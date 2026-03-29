@@ -11,11 +11,11 @@ export const LANE_MAX_Y = 560;
 
 // Fixed castle world positions and hitbox
 export const CASTLE_PLAYER1_X = 120;
-export const CASTLE_PLAYER1_Y = 280;
+export const CASTLE_PLAYER1_Y = 300;
 export const CASTLE_PLAYER2_X = 880;
-export const CASTLE_PLAYER2_Y = 280;
+export const CASTLE_PLAYER2_Y = 300;
 export const CASTLE_HITBOX_W = 100;
-export const CASTLE_HITBOX_H = 100;
+export const CASTLE_HITBOX_H = 60;
 const CASTLE_RECTS = [
   { owner: "player1" as const, x: CASTLE_PLAYER1_X - CASTLE_HITBOX_W / 2, y: CASTLE_PLAYER1_Y - CASTLE_HITBOX_H / 2, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
   { owner: "player2" as const, x: CASTLE_PLAYER2_X - CASTLE_HITBOX_W / 2, y: CASTLE_PLAYER2_Y - CASTLE_HITBOX_H / 2, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
@@ -898,5 +898,16 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
       spawnIntervalTicks: b.spawnIntervalTicks,
       paused: b.paused,
     })),
+    creatureStats: {
+      golem: {
+        hp: getCreatureStats("golem").hp,
+        moveSpeedPerTick: getCreatureStats("golem").moveSpeedPerTick,
+        attackDamage: getCreatureStats("golem").attackDamage,
+        attackRange: getCreatureStats("golem").attackRange,
+        attackIntervalTicks: getCreatureStats("golem").attackIntervalTicks,
+        hitboxRadius: getCreatureStats("golem").hitboxRadius,
+        visionRange: getCreatureStats("golem").visionRange,
+      },
+    },
   };
 }
