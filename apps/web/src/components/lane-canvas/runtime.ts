@@ -386,12 +386,12 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     let projectedUnits: ProjectedUnit[] = [];
+    const referenceFrameHeight = unitSpriteLayer.getReferenceFrameHeight();
+    const golemScale = clamp((gameAreaHeight * 0.10) / referenceFrameHeight, 0.08, 0.24);
     if (pair) {
       const interpolatedUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
       projectedUnits = projectUnits(interpolatedUnits, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
 
-      const referenceFrameHeight = unitSpriteLayer.getReferenceFrameHeight();
-      const golemScale = clamp((gameAreaHeight * 0.10) / referenceFrameHeight, 0.08, 0.24);
       const unitYOffset = 0;
 
       unitSpriteLayer.renderUnits(projectedUnits, golemScale, unitYOffset);
@@ -411,10 +411,18 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         width: b.spriteWidth,
         height: b.spriteHeight,
       }));
+      const refHeight = unitSpriteLayer.getReferenceFrameHeight();
+      const refWidth = refHeight; // frames are roughly square
+      const unitOutlines = projectedUnits.map((u) => {
+        const sw = refWidth * golemScale;
+        const sh = refHeight * golemScale;
+        return { x: u.x - sw / 2, y: u.y - sh * 0.96, width: sw, height: sh };
+      });
       drawImageOutlines(imageOutlineGraphics, [
-        { x: castle1Hitbox.x, y: castle1Hitbox.y, width: castle1Hitbox.w, height: castle1Hitbox.h },
-        { x: castle2Hitbox.x, y: castle2Hitbox.y, width: castle2Hitbox.w, height: castle2Hitbox.h },
+        { x: castle1Visual.x, y: castle1Visual.y, width: castle1Visual.w, height: castle1Visual.h },
+        { x: castle2Visual.x, y: castle2Visual.y, width: castle2Visual.w, height: castle2Visual.h },
         ...buildingOutlines,
+        ...unitOutlines,
       ]);
     } else {
       imageOutlineGraphics.clear();
