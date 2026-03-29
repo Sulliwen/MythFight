@@ -1,5 +1,5 @@
 import { AnimatedSprite, Assets, type Container, Graphics, Text, type Texture } from "pixi.js";
-import { ATTACK_CYCLE_TICKS, GOLEM_ATTACK_FRAME_ASSET_URLS, GOLEM_WALK_FRAME_ASSET_URLS } from "./constants";
+import { ATTACK_CYCLE_TICKS, GOLEM_ATTACK_FRAME_ASSET_URLS, GOLEM_IDLE_FRAME_ASSET_URLS, GOLEM_WALK_FRAME_ASSET_URLS } from "./constants";
 import type { ProjectedUnit, UnitAnimationMode, UnitSpriteEntry } from "./types";
 
 const HP_BAR_WIDTH = 30;
@@ -123,6 +123,7 @@ export class UnitSpriteLayer {
   private readonly attackSfx = createAttackSfxPlayer();
   private walkFrames: Texture[] = [];
   private attackFrames: Texture[] = [];
+  private idleFrames: Texture[] = [];
 
   constructor(container: Container) {
     this.container = container;
@@ -142,6 +143,13 @@ export class UnitSpriteLayer {
       );
       if (this.attackFrames.length === 0) {
         console.warn("Golem attack animation loaded without frames.");
+      }
+
+      this.idleFrames = await Promise.all(
+        GOLEM_IDLE_FRAME_ASSET_URLS.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))
+      );
+      if (this.idleFrames.length === 0) {
+        console.warn("Golem idle animation loaded without frames.");
       }
     } catch (error) {
       console.error("Unable to load golem animation frames.", error);
@@ -364,11 +372,12 @@ export class UnitSpriteLayer {
   private getTexturesForMode(mode: UnitAnimationMode): Texture[] {
     const walkTextures = this.walkFrames.length > 0 ? this.walkFrames : this.attackFrames;
     const attackTextures = this.attackFrames.length > 0 ? this.attackFrames : this.walkFrames;
+    const idleTextures = this.idleFrames.length > 0 ? this.idleFrames : walkTextures;
     if (mode === "attack") {
       return attackTextures;
     }
     if (mode === "idle") {
-      return walkTextures;
+      return idleTextures;
     }
     return walkTextures;
   }
