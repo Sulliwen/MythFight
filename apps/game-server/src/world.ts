@@ -1,5 +1,5 @@
 import { DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getBuildingStats, getCreatureStats, type CreatureId } from "./creatures.js";
-import { findPath } from "./pathfinding.js";
+import { findPath, findPathDetailed, type ObstacleRect } from "./pathfinding.js";
 import type { Building, PlayerId, SnapshotMessage, Unit, WorldState } from "./types.js";
 
 export const TICK_RATE = 20;
@@ -375,8 +375,199 @@ function resolveCircleVsRect(
   return { dx: (dx / dist) * overlap, dy: (dy / dist) * overlap };
 }
 
+type MoveDebugInfo = {
+  mode: "chase" | "castle";
+  fromX: number;
+  fromY: number;
+  intendedX: number;
+  intendedY: number;
+  targetX: number;
+  targetY: number;
+  waypointCount: number;
+};
+
+function formatPoint(x: number, y: number): string {
+  return `(${x.toFixed(1)},${y.toFixed(1)})`;
+}
+
+function buildStuckDebugContext(world: WorldState, unit: Unit, moveDebug?: MoveDebugInfo): string {
+  const stats = getCreatureStats(unit.creatureId);
+  const actualDx = unit.x - (moveDebug?.fromX ?? unit.x);
+  const actualDy = unit.y - (moveDebug?.fromY ?? unit.y);
+  const intendedDx = moveDebug ? moveDebug.intendedX - moveDebug.fromX : unit.vx;
+  const intendedDy = moveDebug ? moveDebug.intendedY - moveDebug.fromY : unit.vy;
+  const correctionDx = moveDebug ? unit.x - moveDebug.intendedX : 0;
+  const correctionDy = moveDebug ? unit.y - moveDebug.intendedY : 0;
+
+  let closeUnits = "none";
+  const nearbyUnits = world.units
+    .filter((other) => other.id !== unit.id)
+    .map((other) => {
+      const otherStats = getCreatureStats(other.creatureId);
+      const dx = other.x - unit.x;
+      const dy = other.y - unit.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = stats.hitboxRadius + otherStats.hitboxRadius;
+      return { other, dist, minDist };
+    })
+    .filter(({ dist, minDist }) => dist <= minDist + 8)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, 3);
+  if (nearbyUnits.length > 0) {
+    closeUnits = nearbyUnits
+      .map(({ other, dist, minDist }) => `${other.id}:${other.state}:${dist.toFixed(1)}/${minDist.toFixed(1)}`)
+      .join(",");
+  }
+
+  let rectCollisions = "none";
+  const rectOverlaps: string[] = [];
+  for (const building of world.buildings) {
+    const buildingStats = getBuildingStats(building.creatureId);
+    const sep = resolveCircleVsRect(
+      unit.x,
+      unit.y,
+      stats.hitboxRadius,
+      building.x - buildingStats.hitboxWidth / 2,
+      building.y - buildingStats.hitboxHeight / 2,
+      buildingStats.hitboxWidth,
+      buildingStats.hitboxHeight,
+    );
+    if (sep) {
+      rectOverlaps.push(`building:${building.id}:${sep.dx.toFixed(1)}/${sep.dy.toFixed(1)}`);
+    }
+  }
+  for (const castle of CASTLE_RECTS) {
+    const sep = resolveCircleVsRect(unit.x, unit.y, stats.hitboxRadius, castle.x, castle.y, castle.w, castle.h);
+    if (sep) {
+      rectOverlaps.push(`castle:${castle.owner}:${sep.dx.toFixed(1)}/${sep.dy.toFixed(1)}`);
+    }
+  }
+  if (rectOverlaps.length > 0) {
+    rectCollisions = rectOverlaps.join(",");
+  }
+
+  const targetDist = moveDebug
+    ? Math.sqrt((moveDebug.targetX - unit.x) ** 2 + (moveDebug.targetY - unit.y) ** 2)
+    : 0;
+
+  return (
+    `mode=${moveDebug?.mode ?? "unknown"} wp=${moveDebug?.waypointCount ?? unit.waypoints.length} ` +
+    `target=${moveDebug ? formatPoint(moveDebug.targetX, moveDebug.targetY) : "n/a"} targetDist=${targetDist.toFixed(1)} ` +
+    `intendedMove=${formatPoint(intendedDx, intendedDy)} actualMove=${formatPoint(actualDx, actualDy)} ` +
+    `correction=${formatPoint(correctionDx, correctionDy)} closeUnits=${closeUnits} rectCollisions=${rectCollisions}`
+  );
+}
+
+type EscapePlan = {
+  waypoint: { x: number; y: number };
+  followUpWaypoints: { x: number; y: number }[];
+  status: "ok" | "escape_only";
+  score: number;
+  startOpenNeighbors: number;
+};
+
+function overlapsStaticObstacles(world: WorldState, x: number, y: number, radius: number): boolean {
+  for (const building of world.buildings) {
+    const stats = getBuildingStats(building.creatureId);
+    const sep = resolveCircleVsRect(
+      x,
+      y,
+      radius,
+      building.x - stats.hitboxWidth / 2,
+      building.y - stats.hitboxHeight / 2,
+      stats.hitboxWidth,
+      stats.hitboxHeight,
+    );
+    if (sep) return true;
+  }
+
+  for (const castle of CASTLE_RECTS) {
+    const sep = resolveCircleVsRect(x, y, radius, castle.x, castle.y, castle.w, castle.h);
+    if (sep) return true;
+  }
+
+  return false;
+}
+
+function overlapsUnits(world: WorldState, unit: Unit, x: number, y: number, onlyAttackingUnits: boolean): boolean {
+  const radius = getCreatureStats(unit.creatureId).hitboxRadius;
+  for (const other of world.units) {
+    if (other.id === unit.id) continue;
+    if (onlyAttackingUnits && other.state !== "attacking" && other.state !== "attacking_unit") continue;
+    const otherRadius = getCreatureStats(other.creatureId).hitboxRadius;
+    const dx = other.x - x;
+    const dy = other.y - y;
+    if (dx * dx + dy * dy < (radius + otherRadius) * (radius + otherRadius)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function buildEscapePlan(
+  world: WorldState,
+  unit: Unit,
+  targetX: number,
+  targetY: number,
+  extraObstacles: ObstacleRect[],
+): EscapePlan | null {
+  const radius = getCreatureStats(unit.creatureId).hitboxRadius;
+  const sampleRadii = [radius * 2.5, radius * 4, radius * 5.5];
+  const angleSteps = 16;
+  let bestPlan: EscapePlan | null = null;
+
+  for (const sampleRadius of sampleRadii) {
+    for (let i = 0; i < angleSteps; i++) {
+      const angle = (i / angleSteps) * Math.PI * 2;
+      const candidateX = unit.x + Math.cos(angle) * sampleRadius;
+      const candidateY = unit.y + Math.sin(angle) * sampleRadius;
+
+      if (candidateX < LANE_MIN_X + radius || candidateX > LANE_MAX_X - radius || candidateY < LANE_MIN_Y + radius || candidateY > LANE_MAX_Y - radius) {
+        continue;
+      }
+      if (overlapsStaticObstacles(world, candidateX, candidateY, radius)) continue;
+      if (overlapsUnits(world, unit, candidateX, candidateY, true)) continue;
+
+      const pathResult = findPathDetailed(
+        candidateX, candidateY,
+        targetX, targetY,
+        world.buildings,
+        extraObstacles,
+        radius,
+        LANE_MIN_X, LANE_MAX_X, LANE_MIN_Y, LANE_MAX_Y,
+        { failureMode: "empty_on_failure", logFailure: false },
+      );
+
+      if (pathResult.startOpenNeighbors === 0) continue;
+
+      const dxFromUnit = candidateX - unit.x;
+      const dyFromUnit = candidateY - unit.y;
+      const localMoveDist = Math.sqrt(dxFromUnit * dxFromUnit + dyFromUnit * dyFromUnit);
+      const dxToTarget = targetX - candidateX;
+      const dyToTarget = targetY - candidateY;
+      const targetDist = Math.sqrt(dxToTarget * dxToTarget + dyToTarget * dyToTarget);
+      const score = targetDist + localMoveDist * 0.35 - pathResult.startOpenNeighbors * 20 + (pathResult.status === "ok" ? -400 : 0);
+
+      const plan: EscapePlan = {
+        waypoint: { x: candidateX, y: candidateY },
+        followUpWaypoints: pathResult.status === "ok" ? pathResult.waypoints : [],
+        status: pathResult.status === "ok" ? "ok" : "escape_only",
+        score,
+        startOpenNeighbors: pathResult.startOpenNeighbors,
+      };
+
+      if (!bestPlan || plan.score < bestPlan.score) {
+        bestPlan = plan;
+      }
+    }
+  }
+
+  return bestPlan;
+}
+
 export function stepWorld(world: WorldState): void {
   world.tick += 1;
+  const moveDebugByUnitId = new Map<string, MoveDebugInfo>();
 
   // Auto-spawn: each building produces units on a timer (skip paused)
   for (const building of world.buildings) {
@@ -517,6 +708,8 @@ export function stepWorld(world: WorldState): void {
     if (unit.attackTargetId) {
       const target = world.units.find((u) => u.id === unit.attackTargetId);
       if (target && target.hp > 0) {
+        const startX = unit.x;
+        const startY = unit.y;
         const CHASE_RECALC_INTERVAL = 10; // recalculate path every 10 ticks
         const needsRecalc = !unit.chaseRecalcTick || (world.tick - unit.chaseRecalcTick) >= CHASE_RECALC_INTERVAL;
 
@@ -567,6 +760,16 @@ export function stepWorld(world: WorldState): void {
 
         unit.x += unit.vx;
         unit.y += unit.vy;
+        moveDebugByUnitId.set(unit.id, {
+          mode: "chase",
+          fromX: startX,
+          fromY: startY,
+          intendedX: unit.x,
+          intendedY: unit.y,
+          targetX,
+          targetY,
+          waypointCount: unit.waypoints.length,
+        });
 
         // Check if in attack range of target unit
         const dx = target.x - unit.x;
@@ -588,6 +791,8 @@ export function stepWorld(world: WorldState): void {
     }
 
     // Normal movement: follow waypoints toward enemy castle
+    const startX = unit.x;
+    const startY = unit.y;
     // Advance through reached waypoints
     while (unit.waypoints.length > 0) {
       const wp = unit.waypoints[0];
@@ -669,6 +874,16 @@ export function stepWorld(world: WorldState): void {
 
     unit.x += unit.vx;
     unit.y += unit.vy;
+    moveDebugByUnitId.set(unit.id, {
+      mode: "castle",
+      fromX: startX,
+      fromY: startY,
+      intendedX: unit.x,
+      intendedY: unit.y,
+      targetX,
+      targetY,
+      waypointCount: unit.waypoints.length,
+    });
 
     // Attack check: enemy castle within attack range (only if not pursuing a unit)
     if (!unit.attackTargetId) {
@@ -808,10 +1023,15 @@ export function stepWorld(world: WorldState): void {
     const dy = unit.y - (unit.prevY ?? unit.y);
     const movedDist = Math.sqrt(dx * dx + dy * dy);
     const speed = getCreatureStats(unit.creatureId).moveSpeedPerTick;
+    const moveDebug = moveDebugByUnitId.get(unit.id);
     if (movedDist < STUCK_THRESHOLD && speed > 0) {
       unit.stuckTicks = (unit.stuckTicks ?? 0) + 1;
       if (unit.stuckTicks === 1) {
-        console.log(`[STUCK] ${unit.id} tick=${world.tick} pos=(${unit.x.toFixed(1)},${unit.y.toFixed(1)}) moved=${movedDist.toFixed(3)} speed=${speed} wp=${unit.waypoints.length} vx=${unit.vx.toFixed(2)} vy=${unit.vy.toFixed(2)}`);
+        console.log(
+          `[STUCK] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} moved=${movedDist.toFixed(3)} ` +
+          `speed=${speed} wp=${unit.waypoints.length} vx=${unit.vx.toFixed(2)} vy=${unit.vy.toFixed(2)} ` +
+          `${buildStuckDebugContext(world, unit, moveDebug)}`,
+        );
       }
     } else {
       unit.stuckTicks = 0;
@@ -823,11 +1043,12 @@ export function stepWorld(world: WorldState): void {
       const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
       // Inflate attacking unit obstacles so they block multiple grid cells (cell size = 20)
       const inflateRadius = creatureStats.hitboxRadius * 3;
-      const attackingUnitObstacles = world.units
+      const attackingUnits = world.units
         .filter((u) => u.id !== unit.id && (u.state === "attacking" || u.state === "attacking_unit"))
-        .map((u) => {
-          return { x: u.x - inflateRadius, y: u.y - inflateRadius, w: inflateRadius * 2, h: inflateRadius * 2 };
-        });
+        .map((u) => ({ id: u.id, x: u.x, y: u.y, state: u.state }));
+      const attackingUnitObstacles = attackingUnits.map((u) => {
+        return { x: u.x - inflateRadius, y: u.y - inflateRadius, w: inflateRadius * 2, h: inflateRadius * 2 };
+      });
 
       const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
       let targetX: number;
@@ -880,20 +1101,56 @@ export function stepWorld(world: WorldState): void {
       }
 
       const oldWp = unit.waypoints.length;
-      unit.waypoints = findPath(
+      const pathResult = findPathDetailed(
         unit.x, unit.y,
         targetX, targetY,
         world.buildings,
         [...castleObstacles, ...attackingUnitObstacles],
         creatureStats.hitboxRadius,
         LANE_MIN_X, LANE_MAX_X, LANE_MIN_Y, LANE_MAX_Y,
+        { failureMode: "empty_on_failure" },
       );
-      console.log(`[STUCK-REPATH] ${unit.id} tick=${world.tick} pos=(${unit.x.toFixed(1)},${unit.y.toFixed(1)}) target=(${targetX.toFixed(1)},${targetY.toFixed(1)}) atkObstacles=${attackingUnitObstacles.length} oldWp=${oldWp} newWp=${unit.waypoints.length}`);
+      let escapePlan: EscapePlan | null = null;
+      if (pathResult.status === "ok") {
+        unit.waypoints = pathResult.waypoints;
+      } else {
+        escapePlan = buildEscapePlan(
+          world,
+          unit,
+          targetX,
+          targetY,
+          [...castleObstacles, ...attackingUnitObstacles],
+        );
+        if (escapePlan) {
+          unit.waypoints = [escapePlan.waypoint, ...escapePlan.followUpWaypoints];
+        } else {
+          unit.waypoints = [];
+        }
+      }
+      const obstacleSummary = attackingUnits.length > 0
+        ? attackingUnits
+          .slice(0, 4)
+          .map((u) => `${u.id}:${u.state}@${formatPoint(u.x, u.y)}`)
+          .join(",")
+        : "none";
+      console.log(
+        `[STUCK-REPATH] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} target=${formatPoint(targetX, targetY)} ` +
+        `atkObstacles=${attackingUnitObstacles.length} obstacleIds=${obstacleSummary} oldWp=${oldWp} newWp=${unit.waypoints.length} ` +
+        `pathStatus=${pathResult.status} startOpen=${pathResult.startOpenNeighbors} goalOpen=${pathResult.goalOpenNeighbors}`,
+      );
       if (unit.waypoints.length > 0) {
         console.log(`[STUCK-REPATH]   first wp=(${unit.waypoints[0].x.toFixed(1)},${unit.waypoints[0].y.toFixed(1)}) last wp=(${unit.waypoints[unit.waypoints.length - 1].x.toFixed(1)},${unit.waypoints[unit.waypoints.length - 1].y.toFixed(1)})`);
       } else {
         console.log(`[STUCK-REPATH]   NO PATH FOUND — unit is trapped`);
       }
+      if (escapePlan) {
+        console.log(
+          `[STUCK-ESCAPE] ${unit.id} tick=${world.tick} escape=${formatPoint(escapePlan.waypoint.x, escapePlan.waypoint.y)} ` +
+          `mode=${escapePlan.status} score=${escapePlan.score.toFixed(1)} startOpen=${escapePlan.startOpenNeighbors} ` +
+          `followUpWp=${escapePlan.followUpWaypoints.length}`,
+        );
+      }
+      console.log(`[STUCK-CTX] ${unit.id} tick=${world.tick} ${buildStuckDebugContext(world, unit, moveDebug)}`);
       unit.stuckTicks = 0;
     }
   }

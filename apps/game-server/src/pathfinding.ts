@@ -2,6 +2,14 @@ import { getBuildingStats } from "./creatures.js";
 import type { Building, Waypoint } from "./types.js";
 
 export type ObstacleRect = { x: number; y: number; w: number; h: number };
+export type FindPathFailureMode = "fallback_direct" | "empty_on_failure";
+export type FindPathStatus = "ok" | "fallback_no_path" | "start_enclosed";
+export type FindPathResult = {
+  waypoints: Waypoint[];
+  status: FindPathStatus;
+  startOpenNeighbors: number;
+  goalOpenNeighbors: number;
+};
 
 const CELL_SIZE = 20;
 
@@ -80,6 +88,17 @@ const NEIGHBORS = [
   [-1, 0],           [1, 0],
   [-1, 1],  [0, 1],  [1, 1],
 ];
+
+function countOpenNeighbors(cx: number, cy: number, cols: number, rows: number, blocked: boolean[]): number {
+  let openCount = 0;
+  for (const [dx, dy] of NEIGHBORS) {
+    const nx = cx + dx;
+    const ny = cy + dy;
+    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+    if (!blocked[ny * cols + nx]) openCount += 1;
+  }
+  return openCount;
+}
 
 function astar(
   startCx: number, startCy: number,
@@ -177,14 +196,20 @@ function simplifyPath(waypoints: Waypoint[]): Waypoint[] {
   return result;
 }
 
-export function findPath(
+export function findPathDetailed(
   startX: number, startY: number,
   goalX: number, goalY: number,
   buildings: Building[],
   extraObstacles: ObstacleRect[],
   unitRadius: number,
   minX: number, maxX: number, minY: number, maxY: number,
-): Waypoint[] {
+  options?: {
+    failureMode?: FindPathFailureMode;
+    logFailure?: boolean;
+  },
+): FindPathResult {
+  const failureMode = options?.failureMode ?? "fallback_direct";
+  const logFailure = options?.logFailure ?? true;
   const { cols, rows, blocked } = buildGrid(minX, maxX, minY, maxY, buildings, extraObstacles, unitRadius);
 
   const start = worldToCell(startX, startY, minX, minY, cols, rows);
@@ -218,10 +243,28 @@ export function findPath(
   blocked[goal.cy * cols + goal.cx] = false;
 
   const path = astar(start.cx, start.cy, goal.cx, goal.cy, cols, rows, blocked);
+  const startOpenNeighbors = countOpenNeighbors(start.cx, start.cy, cols, rows, blocked);
+  const goalOpenNeighbors = countOpenNeighbors(goal.cx, goal.cy, cols, rows, blocked);
 
   if (!path) {
-    // Fallback: straight line
-    return [{ x: goalX, y: goalY }];
+    const status: FindPathStatus = startOpenNeighbors === 0 ? "start_enclosed" : "fallback_no_path";
+    if (logFailure) {
+      const blockedCount = blocked.reduce((count, cell) => count + (cell ? 1 : 0), 0);
+      const prefix = failureMode === "fallback_direct" ? "PATHFIND-FALLBACK" : "PATHFIND-FAIL";
+      console.log(
+        `[${prefix}] start=(${startX.toFixed(1)},${startY.toFixed(1)}) cell=(${start.cx},${start.cy}) ` +
+        `goal=(${goalX.toFixed(1)},${goalY.toFixed(1)}) cell=(${goal.cx},${goal.cy}) ` +
+        `blocked=${blockedCount}/${cols * rows} startOpen=${startOpenNeighbors} goalOpen=${goalOpenNeighbors} ` +
+        `buildings=${buildings.length} extraObstacles=${extraObstacles.length} unitRadius=${unitRadius} status=${status}`,
+      );
+    }
+
+    return {
+      waypoints: failureMode === "fallback_direct" ? [{ x: goalX, y: goalY }] : [],
+      status,
+      startOpenNeighbors,
+      goalOpenNeighbors,
+    };
   }
 
   // Find the spawn building rect to skip waypoints inside it
@@ -267,5 +310,29 @@ export function findPath(
     waypoints.push({ x: goalX, y: goalY });
   }
 
-  return simplifyPath(waypoints);
+  return {
+    waypoints: simplifyPath(waypoints),
+    status: "ok",
+    startOpenNeighbors,
+    goalOpenNeighbors,
+  };
+}
+
+export function findPath(
+  startX: number, startY: number,
+  goalX: number, goalY: number,
+  buildings: Building[],
+  extraObstacles: ObstacleRect[],
+  unitRadius: number,
+  minX: number, maxX: number, minY: number, maxY: number,
+): Waypoint[] {
+  return findPathDetailed(
+    startX, startY,
+    goalX, goalY,
+    buildings,
+    extraObstacles,
+    unitRadius,
+    minX, maxX, minY, maxY,
+    { failureMode: "fallback_direct" },
+  ).waypoints;
 }
