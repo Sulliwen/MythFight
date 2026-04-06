@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { getBuildingActionPayload, getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
-import { updateCreatureStats, type CreatureId, type CreatureStats } from "./creatures.js";
+import { isCreatureId, updateCreatureStats, validateCreatureStatsUpdate, type CreatureId } from "./creatures.js";
 import { TICK_RATE, buildSnapshot, forceSpawnFromBuilding, placeBuilding, resetWorld, spawnUnit, toggleBuildingProduction } from "./world.js";
 import type { PlayerId, WorldState } from "./types.js";
 
@@ -64,6 +64,10 @@ export function handleConnection(
       }
 
       const { x, y, creatureId } = placeBuildingResult.payload;
+      if (!isCreatureId(creatureId)) {
+        socket.send(JSON.stringify({ type: "error", reason: "invalid_creature_id" }));
+        return;
+      }
       const result = placeBuilding(world, owner, x, y, creatureId as CreatureId);
       if (!result.ok) {
         socket.send(JSON.stringify({ type: "error", reason: result.reason }));
@@ -113,11 +117,16 @@ export function handleConnection(
         return;
       }
       const { creatureId, stats } = message as unknown as { creatureId: unknown; stats: unknown };
-      if (typeof creatureId !== "string" || typeof stats !== "object" || stats === null) {
+      if (!isCreatureId(creatureId)) {
         socket.send(JSON.stringify({ type: "error", reason: "invalid_update_creature_stats" }));
         return;
       }
-      updateCreatureStats(creatureId as CreatureId, stats as Partial<CreatureStats>);
+      const validatedStats = validateCreatureStatsUpdate(stats);
+      if (!validatedStats.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: validatedStats.reason }));
+        return;
+      }
+      updateCreatureStats(creatureId as CreatureId, validatedStats.stats);
       return;
     }
 

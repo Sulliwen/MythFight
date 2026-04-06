@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { PlayerId, SnapshotMsg } from "../types";
+import type { AttackType, ArmorType, CreatureStatsSnapshot, PlayerId, SnapshotMsg } from "../types";
 import { useDraggablePanel } from "../hooks/useDraggablePanel";
+import type { CreatureStatUpdatePayload, CreatureStatUpdateValue } from "../hooks/useGameSocket";
 
 type HudProps = {
   mode?: "full" | "core-stats";
@@ -30,7 +31,7 @@ type HudProps = {
   showVisionDebug: boolean;
   onToggleVisionDebug: () => void;
   onToggleAllOverlays: (on: boolean) => void;
-  onUpdateCreatureStats: (creatureId: string, stats: Record<string, number>) => void;
+  onUpdateCreatureStats: (creatureId: string, stats: CreatureStatUpdatePayload) => void;
   snapshots: SnapshotMsg[];
   castleHp: {
     player1: number;
@@ -41,6 +42,7 @@ type HudProps = {
 };
 
 type StatDef = { key: string; label: string; min: number; max: number; step: number };
+type EnumStatDef<T extends string> = { key: string; label: string; options: readonly T[] };
 
 const GOLEM_STAT_DEFS: StatDef[] = [
   { key: "hp", label: "PV", min: 1, max: 1000, step: 1 },
@@ -48,15 +50,53 @@ const GOLEM_STAT_DEFS: StatDef[] = [
   { key: "attackDamage", label: "Degats", min: 1, max: 200, step: 1 },
   { key: "attackRange", label: "Portee atk", min: 5, max: 200, step: 5 },
   { key: "attackIntervalTicks", label: "Vit. attaque", min: 2, max: 100, step: 1 },
+  { key: "armor", label: "Armure", min: -20, max: 20, step: 1 },
   { key: "hitboxRadius", label: "Hitbox R", min: 4, max: 50, step: 1 },
   { key: "visionRange", label: "Vision", min: 10, max: 500, step: 10 },
 ];
 
-function CreatureStatsEditor({ initialStats, onUpdate }: { initialStats: Record<string, number>; onUpdate: (creatureId: string, stats: Record<string, number>) => void }) {
-  const [values, setValues] = useState<Record<string, number>>(initialStats);
+const ATTACK_TYPE_OPTIONS: readonly AttackType[] = [
+  "normal",
+  "piercing",
+  "siege",
+  "magic",
+  "chaos",
+  "spells",
+  "hero",
+];
 
-  const handleChange = (key: string, val: number) => {
-    setValues((prev) => ({ ...prev, [key]: val }));
+const ARMOR_TYPE_OPTIONS: readonly ArmorType[] = [
+  "light",
+  "medium",
+  "heavy",
+  "fortified",
+  "hero",
+  "unarmored",
+];
+
+const GOLEM_ENUM_STAT_DEFS: [
+  EnumStatDef<AttackType>,
+  EnumStatDef<ArmorType>,
+] = [
+  { key: "attackType", label: "Type atk", options: ATTACK_TYPE_OPTIONS },
+  { key: "armorType", label: "Type armure", options: ARMOR_TYPE_OPTIONS },
+];
+
+function formatCastleHp(value: number): string {
+  return `${Math.round(value)}`;
+}
+
+function CreatureStatsEditor({
+  initialStats,
+  onUpdate,
+}: {
+  initialStats: CreatureStatsSnapshot;
+  onUpdate: (creatureId: string, stats: CreatureStatUpdatePayload) => void;
+}) {
+  const [values, setValues] = useState<CreatureStatsSnapshot>(initialStats);
+
+  const handleChange = (key: keyof CreatureStatsSnapshot, val: CreatureStatUpdateValue) => {
+    setValues((prev) => ({ ...prev, [key]: val }) as CreatureStatsSnapshot);
     onUpdate("golem", { [key]: val });
   };
 
@@ -71,8 +111,8 @@ function CreatureStatsEditor({ initialStats, onUpdate }: { initialStats: Record<
             min={def.min}
             max={def.max}
             step={def.step}
-            value={values[def.key]}
-            onChange={(e) => handleChange(def.key, Number(e.target.value))}
+            value={values[def.key as keyof CreatureStatsSnapshot] as number}
+            onChange={(e) => handleChange(def.key as keyof CreatureStatsSnapshot, Number(e.target.value))}
           />
           <input
             type="number"
@@ -80,9 +120,27 @@ function CreatureStatsEditor({ initialStats, onUpdate }: { initialStats: Record<
             min={def.min}
             max={def.max}
             step={def.step}
-            value={values[def.key]}
-            onChange={(e) => handleChange(def.key, Number(e.target.value))}
+            value={values[def.key as keyof CreatureStatsSnapshot] as number}
+            onChange={(e) => handleChange(def.key as keyof CreatureStatsSnapshot, Number(e.target.value))}
           />
+        </div>
+      ))}
+      {GOLEM_ENUM_STAT_DEFS.map((def) => (
+        <div key={def.key} className="hud-row hud-row--stat-editor">
+          <span className="hud-stat-label">{def.label}</span>
+          <select
+            className="hud-stat-number"
+            value={values[def.key as keyof CreatureStatsSnapshot] as string}
+            onChange={(e) =>
+              handleChange(def.key as keyof CreatureStatsSnapshot, e.target.value as AttackType | ArmorType)
+            }
+          >
+            {def.options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </div>
       ))}
     </>
@@ -164,11 +222,11 @@ export function Hud(props: HudProps) {
         </div>
         <div className="hud-row">
           <span>HP P1</span>
-          <strong>{castleHp.player1}</strong>
+          <strong>{formatCastleHp(castleHp.player1)}</strong>
         </div>
         <div className="hud-row">
           <span>HP P2</span>
-          <strong>{castleHp.player2}</strong>
+          <strong>{formatCastleHp(castleHp.player2)}</strong>
         </div>
       </aside>
     );
@@ -246,11 +304,11 @@ export function Hud(props: HudProps) {
         </div>
         <div className="hud-row">
           <span>Castle P1</span>
-          <strong>{castleHp.player1}</strong>
+          <strong>{formatCastleHp(castleHp.player1)}</strong>
         </div>
         <div className="hud-row">
           <span>Castle P2</span>
-          <strong>{castleHp.player2}</strong>
+          <strong>{formatCastleHp(castleHp.player2)}</strong>
         </div>
       </details>
 
@@ -359,8 +417,7 @@ export function Hud(props: HudProps) {
           const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
           const serverGolem = latest?.creatureStats?.golem;
           if (!serverGolem) return <span className="hud-last-message">En attente du serveur...</span>;
-          const initial = serverGolem as unknown as Record<string, number>;
-          return <CreatureStatsEditor key="golem" initialStats={initial} onUpdate={onUpdateCreatureStats} />;
+          return <CreatureStatsEditor key="golem" initialStats={serverGolem} onUpdate={onUpdateCreatureStats} />;
         })()}
       </details>
     </aside>

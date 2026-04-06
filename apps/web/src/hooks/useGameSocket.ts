@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { INTERPOLATION_DELAY_MS } from "../components/lane-canvas/constants";
-import type { CreatureId, PlayerId, ServerMsg, SnapshotMsg } from "../types";
+import type { AttackType, ArmorType, CreatureId, PlayerId, ServerMsg, SnapshotMsg } from "../types";
 
 type SocketStatus = "connecting" | "connected" | "error" | "closed";
 const DEFAULT_DEV_WS_URL = "ws://localhost:8082";
@@ -64,6 +64,9 @@ function resolveWebSocketUrl(): string {
 }
 
 const WS_URL = resolveWebSocketUrl();
+
+export type CreatureStatUpdateValue = number | AttackType | ArmorType;
+export type CreatureStatUpdatePayload = Record<string, CreatureStatUpdateValue>;
 
 export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const wsRef = useRef<WebSocket | null>(null);
@@ -272,6 +275,12 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "force_spawn", buildingId }));
   }
 
+  function sendUpdateCreatureStats(creatureId: string, stats: CreatureStatUpdatePayload) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "update_creature_stats", creatureId, stats }));
+  }
+
   function toggleSnapshotDebug() {
     setShowSnapshotDebug((prev) => !prev);
   }
@@ -297,5 +306,6 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     sendPlaceBuilding,
     sendToggleProduction,
     sendForceSpawn,
+    sendUpdateCreatureStats,
   };
 }

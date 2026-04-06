@@ -1,3 +1,4 @@
+import type { ArmorType, AttackType } from "./combat.js";
 import type { CreatureId } from "./creatures.js";
 
 export type PlayerId = "player1" | "player2";
@@ -82,8 +83,11 @@ export type CreatureStatsSnapshot = {
   hp: number;
   moveSpeedPerTick: number;
   attackDamage: number;
+  attackType: AttackType;
   attackRange: number;
   attackIntervalTicks: number;
+  armorType: ArmorType;
+  armor: number;
   hitboxRadius: number;
   visionRange: number;
 };

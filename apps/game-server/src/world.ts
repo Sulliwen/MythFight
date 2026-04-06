@@ -1,3 +1,4 @@
+import { CASTLE_DEFENSE_PROFILE, resolveDamage } from "./combat.js";
 import { DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getBuildingStats, getCreatureStats, type CreatureId } from "./creatures.js";
 import { findPath, findPathDetailed, type ObstacleRect } from "./pathfinding.js";
 import type { Building, PlayerId, SnapshotMessage, Unit, WorldState } from "./types.js";
@@ -398,6 +399,9 @@ function buildStuckDebugContext(world: WorldState, unit: Unit, moveDebug?: MoveD
   const intendedDy = moveDebug ? moveDebug.intendedY - moveDebug.fromY : unit.vy;
   const correctionDx = moveDebug ? unit.x - moveDebug.intendedX : 0;
   const correctionDy = moveDebug ? unit.y - moveDebug.intendedY : 0;
+  const startTargetDist = moveDebug
+    ? Math.sqrt((moveDebug.targetX - moveDebug.fromX) ** 2 + (moveDebug.targetY - moveDebug.fromY) ** 2)
+    : 0;
 
   let closeUnits = "none";
   const nearbyUnits = world.units
@@ -449,10 +453,11 @@ function buildStuckDebugContext(world: WorldState, unit: Unit, moveDebug?: MoveD
   const targetDist = moveDebug
     ? Math.sqrt((moveDebug.targetX - unit.x) ** 2 + (moveDebug.targetY - unit.y) ** 2)
     : 0;
+  const progressToTarget = startTargetDist - targetDist;
 
   return (
     `mode=${moveDebug?.mode ?? "unknown"} wp=${moveDebug?.waypointCount ?? unit.waypoints.length} ` +
-    `target=${moveDebug ? formatPoint(moveDebug.targetX, moveDebug.targetY) : "n/a"} targetDist=${targetDist.toFixed(1)} ` +
+    `target=${moveDebug ? formatPoint(moveDebug.targetX, moveDebug.targetY) : "n/a"} targetDist=${targetDist.toFixed(1)} progress=${progressToTarget.toFixed(3)} ` +
     `intendedMove=${formatPoint(intendedDx, intendedDy)} actualMove=${formatPoint(actualDx, actualDy)} ` +
     `correction=${formatPoint(correctionDx, correctionDy)} closeUnits=${closeUnits} rectCollisions=${rectCollisions}`
   );
@@ -565,6 +570,61 @@ function buildEscapePlan(
   return bestPlan;
 }
 
+function findChaseApproachPoint(
+  world: WorldState,
+  unit: Unit,
+  target: Unit,
+  extraObstacles: ObstacleRect[],
+): { x: number; y: number } {
+  const unitStats = getCreatureStats(unit.creatureId);
+  const targetStats = getCreatureStats(target.creatureId);
+  const attackDist = unitStats.hitboxRadius + unitStats.attackRange + targetStats.hitboxRadius;
+  const sampleRadius = Math.max(attackDist - 1, unitStats.hitboxRadius + targetStats.hitboxRadius + 1);
+  const samples = 16;
+  let bestPoint: { x: number; y: number } | null = null;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < samples; i++) {
+    const angle = (i / samples) * Math.PI * 2;
+    const candidateX = target.x + Math.cos(angle) * sampleRadius;
+    const candidateY = target.y + Math.sin(angle) * sampleRadius;
+
+    if (
+      candidateX < LANE_MIN_X + unitStats.hitboxRadius ||
+      candidateX > LANE_MAX_X - unitStats.hitboxRadius ||
+      candidateY < LANE_MIN_Y + unitStats.hitboxRadius ||
+      candidateY > LANE_MAX_Y - unitStats.hitboxRadius
+    ) {
+      continue;
+    }
+    if (overlapsStaticObstacles(world, candidateX, candidateY, unitStats.hitboxRadius)) continue;
+    if (overlapsUnits(world, unit, candidateX, candidateY, false)) continue;
+
+    const pathResult = findPathDetailed(
+      unit.x, unit.y,
+      candidateX, candidateY,
+      world.buildings,
+      extraObstacles,
+      unitStats.hitboxRadius,
+      LANE_MIN_X, LANE_MAX_X, LANE_MIN_Y, LANE_MAX_Y,
+      { failureMode: "empty_on_failure", logFailure: false },
+    );
+    if (pathResult.goalOpenNeighbors === 0) continue;
+
+    const dx = candidateX - unit.x;
+    const dy = candidateY - unit.y;
+    const distToCandidate = Math.sqrt(dx * dx + dy * dy);
+    const score = distToCandidate + (pathResult.status === "ok" ? 0 : 500) - pathResult.goalOpenNeighbors * 25;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestPoint = { x: candidateX, y: candidateY };
+    }
+  }
+
+  return bestPoint ?? { x: target.x, y: target.y };
+}
+
 export function stepWorld(world: WorldState): void {
   world.tick += 1;
   const moveDebugByUnitId = new Map<string, MoveDebugInfo>();
@@ -661,7 +721,10 @@ export function stepWorld(world: WorldState): void {
 
           const attackCycleTick = (world.tick - unit.attackCycleStartTick) % creatureStats.attackIntervalTicks;
           if (attackCycleTick === getAttackHitOffsetTicks(unit.creatureId)) {
-            target.hp -= creatureStats.attackDamage;
+            target.hp -= resolveDamage(creatureStats.attackDamage, creatureStats.attackType, {
+              armorType: getCreatureStats(target.creatureId).armorType,
+              armor: getCreatureStats(target.creatureId).armor,
+            });
           }
           continue;
         }
@@ -686,13 +749,11 @@ export function stepWorld(world: WorldState): void {
         // Deal damage on attack tick
         const attackCycleTick = (world.tick - unit.attackCycleStartTick) % creatureStats.attackIntervalTicks;
         if (attackCycleTick === getAttackHitOffsetTicks(unit.creatureId)) {
-          const dist = Math.sqrt(dSqToCastle);
-          const maxDist = creatureStats.hitboxRadius + creatureStats.attackRange;
-
+          const damage = resolveDamage(creatureStats.attackDamage, creatureStats.attackType, CASTLE_DEFENSE_PROFILE);
           if (unit.owner === "player1") {
-            world.castle.player2 = Math.max(0, world.castle.player2 - creatureStats.attackDamage);
+            world.castle.player2 = Math.max(0, world.castle.player2 - damage);
           } else {
-            world.castle.player1 = Math.max(0, world.castle.player1 - creatureStats.attackDamage);
+            world.castle.player1 = Math.max(0, world.castle.player1 - damage);
           }
         }
         continue;
@@ -710,14 +771,15 @@ export function stepWorld(world: WorldState): void {
       if (target && target.hp > 0) {
         const startX = unit.x;
         const startY = unit.y;
+        const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
+        const approachPoint = findChaseApproachPoint(world, unit, target, castleObstacles);
         const CHASE_RECALC_INTERVAL = 10; // recalculate path every 10 ticks
         const needsRecalc = !unit.chaseRecalcTick || (world.tick - unit.chaseRecalcTick) >= CHASE_RECALC_INTERVAL;
 
         if (needsRecalc) {
-          const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
           unit.waypoints = findPath(
             unit.x, unit.y,
-            target.x, target.y,
+            approachPoint.x, approachPoint.y,
             world.buildings,
             castleObstacles,
             creatureStats.hitboxRadius,
@@ -745,8 +807,8 @@ export function stepWorld(world: WorldState): void {
           targetX = unit.waypoints[0].x;
           targetY = unit.waypoints[0].y;
         } else {
-          targetX = target.x;
-          targetY = target.y;
+          targetX = approachPoint.x;
+          targetY = approachPoint.y;
         }
 
         const toTargetX = targetX - unit.x;
@@ -1024,7 +1086,15 @@ export function stepWorld(world: WorldState): void {
     const movedDist = Math.sqrt(dx * dx + dy * dy);
     const speed = getCreatureStats(unit.creatureId).moveSpeedPerTick;
     const moveDebug = moveDebugByUnitId.get(unit.id);
-    if (movedDist < STUCK_THRESHOLD && speed > 0) {
+    const startTargetDist = moveDebug
+      ? Math.sqrt((moveDebug.targetX - moveDebug.fromX) ** 2 + (moveDebug.targetY - moveDebug.fromY) ** 2)
+      : 0;
+    const endTargetDist = moveDebug
+      ? Math.sqrt((moveDebug.targetX - unit.x) ** 2 + (moveDebug.targetY - unit.y) ** 2)
+      : 0;
+    const progressTowardGoal = startTargetDist - endTargetDist;
+    const MIN_PROGRESS_TO_RESET_STUCK = 0.15;
+    if (movedDist < STUCK_THRESHOLD && speed > 0 && progressTowardGoal < MIN_PROGRESS_TO_RESET_STUCK) {
       unit.stuckTicks = (unit.stuckTicks ?? 0) + 1;
       if (unit.stuckTicks === 1) {
         console.log(
@@ -1055,8 +1125,19 @@ export function stepWorld(world: WorldState): void {
       let targetY: number;
       if (unit.attackTargetId) {
         const target = world.units.find((u) => u.id === unit.attackTargetId);
-        targetX = target?.x ?? unit.x;
-        targetY = target?.y ?? unit.y;
+        if (target) {
+          const approachPoint = findChaseApproachPoint(
+            world,
+            unit,
+            target,
+            [...castleObstacles, ...attackingUnitObstacles],
+          );
+          targetX = approachPoint.x;
+          targetY = approachPoint.y;
+        } else {
+          targetX = unit.x;
+          targetY = unit.y;
+        }
       } else {
         // Find a free attack position around the castle perimeter, avoiding attacking units
         const ecx = enemyCastle.x + enemyCastle.w / 2;
@@ -1283,8 +1364,11 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
         hp: getCreatureStats("golem").hp,
         moveSpeedPerTick: getCreatureStats("golem").moveSpeedPerTick,
         attackDamage: getCreatureStats("golem").attackDamage,
+        attackType: getCreatureStats("golem").attackType,
         attackRange: getCreatureStats("golem").attackRange,
         attackIntervalTicks: getCreatureStats("golem").attackIntervalTicks,
+        armorType: getCreatureStats("golem").armorType,
+        armor: getCreatureStats("golem").armor,
         hitboxRadius: getCreatureStats("golem").hitboxRadius,
         visionRange: getCreatureStats("golem").visionRange,
       },

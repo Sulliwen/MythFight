@@ -1,6 +1,8 @@
 export type PlayerId = "player1" | "player2";
 export type UnitState = "moving" | "attacking" | "attacking_unit";
 export type CreatureId = "golem";
+export type AttackType = "normal" | "piercing" | "siege" | "magic" | "chaos" | "spells" | "hero";
+export type ArmorType = "light" | "medium" | "heavy" | "fortified" | "hero" | "unarmored";
 
 export type BuildingSnapshot = {
   id: string;
@@ -50,8 +52,11 @@ export type CreatureStatsSnapshot = {
   hp: number;
   moveSpeedPerTick: number;
   attackDamage: number;
+  attackType: AttackType;
   attackRange: number;
   attackIntervalTicks: number;
+  armorType: ArmorType;
+  armor: number;
   hitboxRadius: number;
   visionRange: number;
 };

@@ -17,6 +17,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function formatHp(value: number): string {
+  return `${Math.round(value)}`;
+}
+
 function CastleCard({
   label,
   hp,
@@ -38,7 +42,7 @@ function CastleCard({
     <article className={`player-ui__card ${isActive ? "player-ui__card--active" : ""}`}>
       <div className="player-ui__row">
         <strong>{label}</strong>
-        <span>{safeHp}/{hpMax}</span>
+        <span>{formatHp(safeHp)}/{formatHp(hpMax)}</span>
       </div>
       <div className="player-ui__bar">
         <div className="player-ui__bar-fill" style={{ width: `${widthPercent}%` }} />
