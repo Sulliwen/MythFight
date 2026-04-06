@@ -75,6 +75,8 @@ export type ProjectedUnit = {
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
   attackTargetId?: string;
+  selectionWidth: number;
+  selectionHeight: number;
 };
 
 export type ProjectedBuilding = {

@@ -1,4 +1,3 @@
-import { CREATURE_DISPLAY_STATS } from "../creature-stats";
 import type { PlayerId, SelectionTarget, SnapshotMsg } from "../types";
 
 type CommandBarProps = {
@@ -32,7 +31,7 @@ function HpBar({ hp, maxHp, label }: { hp: number; maxHp: number; label?: string
           style={{ width: `${pct}%`, background: hpColor(ratio) }}
         />
       </div>
-      <span className="cmd-bar__stat-value">{hp}/{maxHp}</span>
+      <span className="cmd-bar__stat-value">{Math.round(hp)}/{Math.round(maxHp)}</span>
     </div>
   );
 }
@@ -77,17 +76,26 @@ function BuildingInfo({ building }: { building: { creatureId: string; hp: number
   );
 }
 
-function UnitInfo({ unit }: { unit: { hp: number; creatureId: string; vx: number; state: string; owner: string } }) {
-  const stats = CREATURE_DISPLAY_STATS[unit.creatureId as keyof typeof CREATURE_DISPLAY_STATS];
+function UnitInfo({
+  unit,
+  creatureStats,
+}: {
+  unit: { hp: number; maxHp: number; creatureId: string; state: string; owner: string };
+  creatureStats?: { attackDamage: number; armor: number; attackType: string; armorType: string; moveSpeedPerTick: number };
+}) {
   const ownerLabel = unit.owner === "player1" ? "J1" : "J2";
-  const stateLabel = unit.state === "moving" ? "En marche" : "Attaque";
+  const stateLabel =
+    unit.state === "moving" ? "En marche" : unit.state === "attacking_unit" ? "Combat" : "Attaque";
   return (
     <div className="cmd-bar__info">
       <strong className="cmd-bar__info-title">Golem ({ownerLabel})</strong>
+      <HpBar hp={unit.hp} maxHp={unit.maxHp} label="PV" />
       <div className="cmd-bar__info-stats">
-        <span>PV: {unit.hp}/{stats?.hp ?? "?"}</span>
-        <span>Degats: {stats?.attackDamage ?? "?"}</span>
-        <span>Vitesse: {stats?.moveSpeed ?? "?"}</span>
+        <span>Degats: {creatureStats?.attackDamage ?? "?"}</span>
+        <span>Vitesse: {creatureStats?.moveSpeedPerTick ?? "?"}</span>
+        <span>Type atk: {creatureStats?.attackType ?? "?"}</span>
+        <span>Type armure: {creatureStats?.armorType ?? "?"}</span>
+        <span>Armure: {creatureStats?.armor ?? "?"}</span>
         <span>Etat: {stateLabel}</span>
       </div>
     </div>
@@ -130,7 +138,7 @@ export function CommandBar({
     } else if (selection.kind === "unit") {
       const unit = latest.units?.find((u) => u.id === selection.id);
       if (unit) {
-        centerContent = <UnitInfo unit={unit} />;
+        centerContent = <UnitInfo unit={unit} creatureStats={latest.creatureStats?.[unit.creatureId]} />;
       } else {
         centerContent = <span className="cmd-bar__center-empty">Unite eliminee</span>;
       }
