@@ -54,7 +54,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     attackAnimationFrameCount: 6,
     attackHitFrameIndex: 3, // 0-based -> frame 4/6
     armorType: "heavy",
-    armor: 0,
+    armor: 50,
     hitboxRadius: 12,
     visionRange: 100,
   },

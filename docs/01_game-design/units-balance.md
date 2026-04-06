@@ -21,7 +21,7 @@
 ### Profils actuels MythFight
 | Entite | Attack type | Armor type | Armor | Degats de base |
 |---|---|---|---:|---:|
-| Golem | Siege | Heavy | 0 | 50 |
+| Golem | Siege | Heavy | 50 | 50 |
 | Chateau | - | Fortified | 5 | - |
 
 ## Colonnes recommandees
