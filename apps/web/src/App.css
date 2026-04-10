@@ -239,7 +239,7 @@
 
 .cmd-bar {
   display: grid;
-  grid-template-columns: 160px 1fr 200px;
+  grid-template-columns: 160px 1fr 180px 200px;
   gap: 2px;
   height: 140px;
   background: rgba(8, 12, 22, 0.92);
@@ -288,10 +288,7 @@
   color: #f8fafc;
 }
 
-.cmd-bar__info-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
+.cmd-bar__info-state {
   font-size: 11px;
   color: #94a3b8;
 }
@@ -334,6 +331,23 @@
   width: 52px;
   text-align: right;
   flex-shrink: 0;
+}
+
+.cmd-bar__stats {
+  border-left: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+.cmd-bar__stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #94a3b8;
+  width: 100%;
 }
 
 .cmd-bar__actions {

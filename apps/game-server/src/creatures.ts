@@ -28,6 +28,8 @@ export type BuildingStats = {
   hitboxWidth: number;
   hitboxHeight: number;
   spawnIntervalTicks: number;
+  armorType: ArmorType;
+  armor: number;
 };
 
 const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
@@ -36,18 +38,24 @@ const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
     hitboxWidth: 70,
     hitboxHeight: 70,
     spawnIntervalTicks: 1200, // 60 seconds at 20 TPS
+    armorType: "fortified",
+    armor: 10,
   },
   soldier: {
     hp: 140,
     hitboxWidth: 64,
     hitboxHeight: 64,
     spawnIntervalTicks: 600, // 30 seconds at 20 TPS
+    armorType: "fortified",
+    armor: 5,
   },
   griffon: {
     hp: 180,
     hitboxWidth: 78,
     hitboxHeight: 78,
     spawnIntervalTicks: 1400, // 70 seconds at 20 TPS
+    armorType: "fortified",
+    armor: 8,
   },
 };
 

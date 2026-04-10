@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CREATURE_IDS, getCreaturePresentation } from "../creature-config";
+import { useTranslation } from "../i18n";
 import type { AttackType, ArmorType, CreatureStatsSnapshot, PlayerId, SnapshotMsg } from "../types";
 import { useDraggablePanel } from "../hooks/useDraggablePanel";
 import type { CreatureStatUpdatePayload, CreatureStatUpdateValue } from "../hooks/useGameSocket";
@@ -48,14 +49,14 @@ type StatDef = { key: string; label: string; min: number; max: number; step: num
 type EnumStatDef<T extends string> = { key: string; label: string; options: readonly T[] };
 
 const CREATURE_STAT_DEFS: StatDef[] = [
-  { key: "hp", label: "PV", min: 1, max: 1000, step: 1 },
-  { key: "moveSpeedPerTick", label: "Vitesse", min: 1, max: 30, step: 1 },
-  { key: "attackDamage", label: "Degats", min: 1, max: 200, step: 1 },
-  { key: "attackRange", label: "Portee atk", min: 5, max: 200, step: 5 },
-  { key: "attackIntervalTicks", label: "Vit. attaque", min: 2, max: 100, step: 1 },
-  { key: "armor", label: "Armure", min: -20, max: 20, step: 1 },
-  { key: "hitboxRadius", label: "Hitbox R", min: 4, max: 50, step: 1 },
-  { key: "visionRange", label: "Vision", min: 10, max: 500, step: 10 },
+  { key: "hp", label: "stats.hp", min: 1, max: 1000, step: 1 },
+  { key: "moveSpeedPerTick", label: "stats.speed", min: 1, max: 30, step: 1 },
+  { key: "attackDamage", label: "stats.damage", min: 1, max: 200, step: 1 },
+  { key: "attackRange", label: "stats.attackRange", min: 5, max: 200, step: 5 },
+  { key: "attackIntervalTicks", label: "stats.attackSpeed", min: 2, max: 100, step: 1 },
+  { key: "armor", label: "stats.armor", min: -20, max: 20, step: 1 },
+  { key: "hitboxRadius", label: "stats.hitboxRadius", min: 4, max: 50, step: 1 },
+  { key: "visionRange", label: "stats.vision", min: 10, max: 500, step: 10 },
 ];
 
 const ATTACK_TYPE_OPTIONS: readonly AttackType[] = [
@@ -81,8 +82,8 @@ const CREATURE_ENUM_STAT_DEFS: [
   EnumStatDef<AttackType>,
   EnumStatDef<ArmorType>,
 ] = [
-  { key: "attackType", label: "Type atk", options: ATTACK_TYPE_OPTIONS },
-  { key: "armorType", label: "Type armure", options: ARMOR_TYPE_OPTIONS },
+  { key: "attackType", label: "stats.attackType", options: ATTACK_TYPE_OPTIONS },
+  { key: "armorType", label: "stats.armorType", options: ARMOR_TYPE_OPTIONS },
 ];
 
 function formatCastleHp(value: number): string {
@@ -98,6 +99,7 @@ function CreatureStatsEditor({
   initialStats: CreatureStatsSnapshot;
   onUpdate: (creatureId: string, stats: CreatureStatUpdatePayload) => void;
 }) {
+  const { t } = useTranslation();
   const [values, setValues] = useState<CreatureStatsSnapshot>(initialStats);
 
   const handleChange = (key: keyof CreatureStatsSnapshot, val: CreatureStatUpdateValue) => {
@@ -109,7 +111,7 @@ function CreatureStatsEditor({
     <>
       {CREATURE_STAT_DEFS.map((def) => (
         <div key={def.key} className="hud-row hud-row--stat-editor">
-          <span className="hud-stat-label">{def.label}</span>
+          <span className="hud-stat-label">{t(def.label as Parameters<typeof t>[0])}</span>
           <input
             type="range"
             className="hud-stat-range"
@@ -132,7 +134,7 @@ function CreatureStatsEditor({
       ))}
       {CREATURE_ENUM_STAT_DEFS.map((def) => (
         <div key={def.key} className="hud-row hud-row--stat-editor">
-          <span className="hud-stat-label">{def.label}</span>
+          <span className="hud-stat-label">{t(def.label as Parameters<typeof t>[0])}</span>
           <select
             className="hud-stat-number"
             value={values[def.key as keyof CreatureStatsSnapshot] as string}
@@ -153,9 +155,10 @@ function CreatureStatsEditor({
 }
 
 function LagSelect({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const { t } = useTranslation();
   return (
     <label className="hud-lag" htmlFor="simulated-lag">
-      Lag
+      {t("debug.lag")}
       <select id="simulated-lag" value={value} onChange={(event) => onChange(Number(event.target.value))}>
         <option value={0}>0 ms</option>
         <option value={50}>50 ms</option>
@@ -172,6 +175,7 @@ function LagSelect({ value, onChange }: { value: number; onChange: (value: numbe
 }
 
 export function Hud(props: HudProps) {
+  const { t } = useTranslation();
   const {
     mode = "full",
     status,
@@ -216,23 +220,23 @@ export function Hud(props: HudProps) {
     return (
       <aside className="hud-card hud-card--core" aria-label="Core stats">
         <div className="hud-row">
-          <span>Player</span>
+          <span>{t("debug.player")}</span>
           <strong>{playerId}</strong>
         </div>
         <div className="hud-row">
-          <span>FPS</span>
+          <span>{t("debug.fps")}</span>
           <strong>{fps}</strong>
         </div>
         <div className="hud-row">
-          <span>RTT</span>
+          <span>{t("debug.rtt")}</span>
           <strong>{rttMs} ms</strong>
         </div>
         <div className="hud-row">
-          <span>HP P1</span>
+          <span>{t("debug.hpP1")}</span>
           <strong>{formatCastleHp(castleHp.player1)}</strong>
         </div>
         <div className="hud-row">
-          <span>HP P2</span>
+          <span>{t("debug.hpP2")}</span>
           <strong>{formatCastleHp(castleHp.player2)}</strong>
         </div>
       </aside>
@@ -255,13 +259,13 @@ export function Hud(props: HudProps) {
         onPointerUp={onDragEnd}
         onPointerCancel={onDragEnd}
       >
-        <span>Debug</span>
+        <span>{t("debug.title")}</span>
         <span className={isConnected ? "hud-badge hud-badge--ok" : "hud-badge hud-badge--warn"}>{status}</span>
       </div>
 
       <div className="hud-grid">
         <div className="hud-metric">
-          <span>Player</span>
+          <span>{t("debug.player")}</span>
           <select
             className="hud-player-select"
             value={controlledPlayer}
@@ -276,22 +280,22 @@ export function Hud(props: HudProps) {
       </div>
 
       <details className="hud-submenu">
-        <summary>Network</summary>
+        <summary>{t("debug.network")}</summary>
         <div className="hud-row">
-          <span>Tick</span>
+          <span>{t("debug.tick")}</span>
           <strong>{serverTick}</strong>
         </div>
         <div className="hud-row">
-          <span>FPS</span>
+          <span>{t("debug.fps")}</span>
           <strong>{fps}</strong>
         </div>
         <div className="hud-row">
-          <span>RTT</span>
+          <span>{t("debug.rtt")}</span>
           <strong>{rttMs} ms</strong>
         </div>
         <LagSelect value={simulatedLagMs} onChange={onSimulatedLagChange} />
         <div className="hud-row">
-          <span>Snapshot logs</span>
+          <span>{t("debug.snapshotLogs")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showSnapshotDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -304,25 +308,25 @@ export function Hud(props: HudProps) {
       </details>
 
       <details className="hud-submenu" open>
-        <summary>Game state</summary>
+        <summary>{t("debug.gameState")}</summary>
         <div className="hud-row">
-          <span>Units</span>
+          <span>{t("debug.units")}</span>
           <strong>{unitsCount}</strong>
         </div>
         <div className="hud-row">
-          <span>Castle P1</span>
+          <span>{t("debug.castleP1")}</span>
           <strong>{formatCastleHp(castleHp.player1)}</strong>
         </div>
         <div className="hud-row">
-          <span>Castle P2</span>
+          <span>{t("debug.castleP2")}</span>
           <strong>{formatCastleHp(castleHp.player2)}</strong>
         </div>
       </details>
 
       <details className="hud-submenu">
-        <summary>Overlays</summary>
+        <summary>{t("debug.overlays")}</summary>
         <div className="hud-row">
-          <span>Tout</span>
+          <span>{t("debug.all")}</span>
           {(() => {
             const allOn = showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug && showPathwayDebug;
             const allOff = !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug && !showPathwayDebug;
@@ -347,7 +351,7 @@ export function Hud(props: HudProps) {
           })()}
         </div>
         <div className="hud-row">
-          <span>Contour images</span>
+          <span>{t("debug.imageOutline")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showImageOutlineDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -357,7 +361,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Zone constructible</span>
+          <span>{t("debug.buildZone")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showBuildZoneDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -367,7 +371,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Zone de jeu</span>
+          <span>{t("debug.gameArea")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showGameAreaDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -377,7 +381,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Collision (serveur)</span>
+          <span>{t("debug.collision")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showCollisionDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -387,7 +391,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Portee d'attaque</span>
+          <span>{t("debug.attackRange")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showAttackRangeDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -397,7 +401,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Champ de vision</span>
+          <span>{t("debug.visionField")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showVisionDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -407,7 +411,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Grille pathfinding</span>
+          <span>{t("debug.pathfindingGrid")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showGridDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -417,7 +421,7 @@ export function Hud(props: HudProps) {
           </button>
         </div>
         <div className="hud-row">
-          <span>Chemins unites</span>
+          <span>{t("debug.unitPaths")}</span>
           <button
             type="button"
             className={`hud-inline-toggle ${showPathwayDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
@@ -434,7 +438,7 @@ export function Hud(props: HudProps) {
         const presentation = getCreaturePresentation(creatureId);
         return (
           <details key={creatureId} className="hud-submenu">
-            <summary>{presentation.unitName} Stats</summary>
+            <summary>{t("debug.statsLabel", { name: t(presentation.unitNameKey) })}</summary>
             {serverStats ? (
               <CreatureStatsEditor
                 creatureId={creatureId}
@@ -442,7 +446,7 @@ export function Hud(props: HudProps) {
                 onUpdate={onUpdateCreatureStats}
               />
             ) : (
-              <span className="hud-last-message">En attente du serveur...</span>
+              <span className="hud-last-message">{t("status.waitingForServer")}</span>
             )}
           </details>
         );

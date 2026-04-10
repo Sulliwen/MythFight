@@ -8,6 +8,7 @@ import { MenuOverlay } from "./components/menu/MenuOverlay";
 import { SpawnButton } from "./components/SpawnButton";
 import { VictoryOverlay } from "./components/victory/VictoryOverlay";
 import { DEFAULT_CREATURE_ID } from "./creature-config";
+import { useTranslation } from "./i18n";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
@@ -23,6 +24,7 @@ function getMatchOutcome(castleHp: { player1: number; player2: number }): MatchO
 }
 
 function App() {
+  const { t } = useTranslation();
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
@@ -130,13 +132,15 @@ function App() {
   };
 
   const victoryTitle =
-    matchOutcome === "draw" ? "Match nul" : `Victoire de ${matchOutcome === "player1" ? "Player 1" : "Player 2"}`;
+    matchOutcome === "draw"
+      ? t("match.draw")
+      : t("match.victory", { winner: matchOutcome === "player1" ? "Player 1" : "Player 2" });
   const victorySubtitle =
     matchOutcome === "draw"
-      ? "Les deux chateaux sont tombes."
+      ? t("match.drawSubtitle")
       : matchOutcome === controlledPlayer
-        ? "Tu remportes la manche."
-        : "Tu perds la manche.";
+        ? t("match.winSubtitle")
+        : t("match.loseSubtitle");
 
   return (
     <main className="app-shell">
@@ -161,20 +165,20 @@ function App() {
 
       <div className="hud-overlay">
         <header className="app-topbar">
-          <div className="app-title">MythFight POC</div>
+          <div className="app-title">{t("app.title")}</div>
 
           <div className="action-dock">
             <SpawnButton className="action-btn" onSpawn={sendSpawn} disabled={status !== "connected"} />
             <SpawnButton
               className="action-btn action-btn--player"
               onSpawn={() => setControlledPlayer(nextControlledPlayer)}
-              label={`Joueur: ${controlledPlayer}`}
+              label={t("actions.player", { player: controlledPlayer })}
             />
             <SpawnButton
               className="action-btn action-btn--alt"
               onSpawn={handleNewGame}
               disabled={status !== "connected"}
-              label="New game"
+              label={t("actions.newGame")}
             />
             {installPromptAvailable && (
               <SpawnButton
@@ -182,13 +186,13 @@ function App() {
                 onSpawn={() => {
                   void promptInstall();
                 }}
-                label="Installer"
+                label={t("actions.install")}
               />
             )}
             <SpawnButton
               className={`action-btn ${debugPanelVisible ? "action-btn--debug-on" : "action-btn--debug-off"}`}
               onSpawn={() => setDebugPanelVisible((prev) => !prev)}
-              label={`Debug: ${debugPanelVisible ? "on" : "off"}`}
+              label={t("actions.debug", { state: debugPanelVisible ? t("ui.on") : t("ui.off") })}
             />
           </div>
         </header>
@@ -196,7 +200,7 @@ function App() {
         <div className="status-stack" aria-live="polite">
           {needRefresh && (
             <div className="status-banner status-banner--update">
-              <span>Une mise a jour est disponible.</span>
+              <span>{t("status.updateAvailable")}</span>
               <button
                 type="button"
                 className="status-banner__action"
@@ -204,30 +208,30 @@ function App() {
                   void refreshApplication();
                 }}
               >
-                Rafraichir
+                {t("actions.refresh")}
               </button>
             </div>
           )}
 
           {!needRefresh && offlineReady && (
-            <div className="status-banner status-banner--info">Le mode offline minimal est pret.</div>
+            <div className="status-banner status-banner--info">{t("status.offlineReady")}</div>
           )}
 
           {!isOnline && (
             <div className="status-banner status-banner--warn">
-              Vous etes hors ligne. L'interface reste disponible, mais la partie temps reel est indisponible.
+              {t("status.offline")}
             </div>
           )}
 
           {isOnline && showServerUnavailable && (
             <div className="status-banner status-banner--warn">
-              Le serveur de jeu est indisponible. Verifie la connexion WebSocket et relance quand le serveur revient.
+              {t("status.serverUnavailable")}
             </div>
           )}
 
           {showIosInstallHint && (
             <div className="status-banner status-banner--info">
-              Sur iOS: ouvre le menu Partager puis selectionne "Ajouter a l'ecran d'accueil".
+              {t("status.iosInstallHint")}
             </div>
           )}
         </div>
