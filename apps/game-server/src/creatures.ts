@@ -1,9 +1,11 @@
 import { isArmorType, isAttackType, type ArmorType, type AttackType } from "./combat.js";
 
-export type CreatureId = "golem";
+export const CREATURE_IDS = ["golem", "soldier", "griffon"] as const;
+
+export type CreatureId = (typeof CREATURE_IDS)[number];
 
 export function isCreatureId(value: unknown): value is CreatureId {
-  return value === "golem";
+  return typeof value === "string" && CREATURE_IDS.includes(value as CreatureId);
 }
 
 export type CreatureStats = {
@@ -33,7 +35,19 @@ const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
     hp: 200,
     hitboxWidth: 70,
     hitboxHeight: 70,
-    spawnIntervalTicks: 100, // 5 seconds at 20 TPS
+    spawnIntervalTicks: 1200, // 60 seconds at 20 TPS
+  },
+  soldier: {
+    hp: 140,
+    hitboxWidth: 64,
+    hitboxHeight: 64,
+    spawnIntervalTicks: 600, // 30 seconds at 20 TPS
+  },
+  griffon: {
+    hp: 180,
+    hitboxWidth: 78,
+    hitboxHeight: 78,
+    spawnIntervalTicks: 1400, // 70 seconds at 20 TPS
   },
 };
 
@@ -47,7 +61,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
   golem: {
     hp: 100,
     moveSpeedPerTick: 1,
-    attackDamage: 50,
+    attackDamage: 600,
     attackType: "siege",
     attackRange: 5,
     attackIntervalTicks: 100,
@@ -57,6 +71,34 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     armor: 50,
     hitboxRadius: 12,
     visionRange: 100,
+  },
+  soldier: {
+    hp: 55,
+    moveSpeedPerTick: 1.8,
+    attackDamage: 84,
+    attackType: "normal",
+    attackRange: 10,
+    attackIntervalTicks: 28,
+    attackAnimationFrameCount: 1,
+    attackHitFrameIndex: 0,
+    armorType: "medium",
+    armor: 4,
+    hitboxRadius: 9,
+    visionRange: 110,
+  },
+  griffon: {
+    hp: 125,
+    moveSpeedPerTick: 1.4,
+    attackDamage: 340,
+    attackType: "magic",
+    attackRange: 18,
+    attackIntervalTicks: 40,
+    attackAnimationFrameCount: 1,
+    attackHitFrameIndex: 0,
+    armorType: "medium",
+    armor: 2,
+    hitboxRadius: 14,
+    visionRange: 150,
   },
 };
 

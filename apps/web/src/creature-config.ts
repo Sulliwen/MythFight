@@ -28,19 +28,19 @@ export const CREATURE_BUILDING_STATS: Record<CreatureId, CreatureBuildingStats> 
     hp: 200,
     hitboxWidth: 70,
     hitboxHeight: 70,
-    spawnIntervalTicks: 100,
+    spawnIntervalTicks: 1200,
   },
   soldier: {
     hp: 140,
     hitboxWidth: 64,
     hitboxHeight: 64,
-    spawnIntervalTicks: 60,
+    spawnIntervalTicks: 600,
   },
   griffon: {
     hp: 180,
     hitboxWidth: 78,
     hitboxHeight: 78,
-    spawnIntervalTicks: 140,
+    spawnIntervalTicks: 1400,
   },
 };
 
