@@ -1,5 +1,5 @@
 export type PlayerId = "player1" | "player2";
-export type UnitState = "moving" | "attacking" | "attacking_unit";
+export type UnitState = "moving" | "attacking" | "attacking_unit" | "attacking_building";
 export type CreatureId = "golem" | "soldier" | "griffon";
 export type BuildingId = "castle" | "golem_workshop" | "barracks" | "griffon_aery";
 export type AttackType = "normal" | "piercing" | "siege" | "magic" | "chaos" | "spells" | "hero";
@@ -29,6 +29,7 @@ export type Unit = {
   hp: number;
   maxHp: number;
   state: UnitState;
+  flying: boolean;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
@@ -60,6 +61,7 @@ export type CreatureStatsSnapshot = {
   armor: number;
   hitboxRadius: number;
   visionRange: number;
+  canFly: boolean;
 };
 
 export type SnapshotMsg = {

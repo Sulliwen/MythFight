@@ -232,8 +232,10 @@ function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
     hp: creatureStats.hp,
     maxHp: creatureStats.hp,
     state: "moving",
+    flying: false,
     attackCycleStartTick: 0,
     waypoints,
+    canFly: creatureStats.canFly,
   };
   world.units.push(unit);
   return unit;
@@ -303,8 +305,10 @@ function spawnUnitFromCastle(world: WorldState, owner: PlayerId, creatureId: Cre
     hp: creatureStats.hp,
     maxHp: creatureStats.hp,
     state: "moving",
+    flying: false,
     attackCycleStartTick: 0,
     waypoints,
+    canFly: creatureStats.canFly,
   };
   world.units.push(unit);
   return unit;
@@ -337,6 +341,26 @@ export function forceSpawnFromBuilding(world: WorldState, owner: PlayerId, build
   const unit = spawnUnitFromBuilding(world, building);
   building.spawnTicksRemaining = stats.spawnIntervalTicks ?? 0;
   return { ok: true, unit };
+}
+
+type ToggleFlightResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+export function toggleFlight(world: WorldState, owner: PlayerId, unitId: string): ToggleFlightResult {
+  const unit = world.units.find((u) => u.id === unitId && u.owner === owner);
+  if (!unit) return { ok: false, reason: "unit_not_found" };
+  if (!unit.canFly) return { ok: false, reason: "unit_cannot_fly" };
+  unit.flying = !unit.flying;
+  // When toggling flight, drop current combat target — re-acquire next tick
+  if (unit.attackTargetId) {
+    unit.attackTargetId = undefined;
+    if (unit.state === "attacking_unit") {
+      unit.state = "moving";
+      unit.waypoints = [];
+    }
+  }
+  return { ok: true };
 }
 
 // Closest point on a rect edge to a given point
@@ -653,10 +677,13 @@ export function stepWorld(world: WorldState): void {
     const creatureStats = getCreatureStats(unit.creatureId);
     const visionRangeSq = creatureStats.visionRange * creatureStats.visionRange;
 
-    // Validate existing target: still alive and in vision range?
+    // Validate existing unit target: still alive, in vision range, and flight-compatible?
     if (unit.attackTargetId) {
       const target = world.units.find((u) => u.id === unit.attackTargetId);
       if (!target || target.hp <= 0) {
+        unit.attackTargetId = undefined;
+      } else if (unit.flying !== target.flying) {
+        // Flight mismatch: flying units can only fight other flying units
         unit.attackTargetId = undefined;
       } else {
         const dx = target.x - unit.x;
@@ -667,12 +694,30 @@ export function stepWorld(world: WorldState): void {
       }
     }
 
+    // Validate existing building target: still alive and in vision range?
+    if (unit.attackTargetBuildingId && !unit.attackTargetId) {
+      const targetBuilding = world.buildings.find((b) => b.id === unit.attackTargetBuildingId);
+      if (!targetBuilding || targetBuilding.hp <= 0) {
+        unit.attackTargetBuildingId = undefined;
+      } else {
+        const bRect = buildingRect(targetBuilding);
+        const dSq = distSqToRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+        if (dSq > visionRangeSq) {
+          unit.attackTargetBuildingId = undefined;
+        }
+      }
+    }
+
     // Acquire new target if none (locked targeting: don't switch while current is valid)
+    // Priority: enemy units first, then enemy buildings (non-castle)
+    // Flight rule: flying units only target flying enemies; ground units only target ground enemies
     if (!unit.attackTargetId) {
       let closestDistSq = visionRangeSq;
       let closestId: string | undefined;
       for (const other of world.units) {
         if (other.owner === unit.owner || other.hp <= 0) continue;
+        // Flight mismatch: skip targets at different altitude
+        if (unit.flying !== other.flying) continue;
         const dx = other.x - unit.x;
         const dy = other.y - unit.y;
         const dSq = dx * dx + dy * dy;
@@ -683,7 +728,31 @@ export function stepWorld(world: WorldState): void {
       }
       if (closestId) {
         unit.attackTargetId = closestId;
-        // If was attacking castle, switch to moving to pursue unit
+        unit.attackTargetBuildingId = undefined;
+        // If was attacking castle or building, switch to moving to pursue unit
+        if (unit.state === "attacking" || unit.state === "attacking_building") {
+          unit.state = "moving";
+          unit.waypoints = [];
+        }
+      }
+    }
+
+    // If no unit target, look for enemy buildings (non-castle) in vision range
+    // Flying units skip non-castle buildings (they fly over them)
+    if (!unit.attackTargetId && !unit.attackTargetBuildingId && !unit.flying) {
+      let closestDistSq = visionRangeSq;
+      let closestBuildingId: string | undefined;
+      for (const b of world.buildings) {
+        if (b.owner === unit.owner || b.hp <= 0 || b.buildingId === "castle") continue;
+        const bRect = buildingRect(b);
+        const dSq = distSqToRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+        if (dSq < closestDistSq) {
+          closestDistSq = dSq;
+          closestBuildingId = b.id;
+        }
+      }
+      if (closestBuildingId) {
+        unit.attackTargetBuildingId = closestBuildingId;
         if (unit.state === "attacking") {
           unit.state = "moving";
           unit.waypoints = [];
@@ -733,6 +802,46 @@ export function stepWorld(world: WorldState): void {
               armorType: getCreatureStats(target.creatureId).armorType,
               armor: getCreatureStats(target.creatureId).armor,
             });
+          }
+          continue;
+        }
+      }
+    }
+
+    // Handle attacking_building state
+    if (unit.state === "attacking_building") {
+      const targetBuilding = unit.attackTargetBuildingId
+        ? world.buildings.find((b) => b.id === unit.attackTargetBuildingId)
+        : undefined;
+      if (!targetBuilding || targetBuilding.hp <= 0) {
+        // Building destroyed — resume moving
+        unit.state = "moving";
+        unit.attackTargetBuildingId = undefined;
+        unit.waypoints = [];
+      } else {
+        const bRect = buildingRect(targetBuilding);
+        const dSq = distSqToRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+        const maxAttackDist = creatureStats.hitboxRadius + creatureStats.attackRange;
+        if (dSq > maxAttackDist * maxAttackDist) {
+          // Out of range — resume moving (keep building target locked)
+          unit.state = "moving";
+          unit.waypoints = [];
+        } else {
+          // In range — compute attack target point and deal damage
+          const atkPt = closestPointOnRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+          unit.attackTargetX = atkPt.x;
+          unit.attackTargetY = atkPt.y;
+          unit.vx = 0;
+          unit.vy = 0;
+
+          const attackCycleTick = (world.tick - unit.attackCycleStartTick) % creatureStats.attackIntervalTicks;
+          if (attackCycleTick === getAttackHitOffsetTicks(unit.creatureId)) {
+            const bStats = getBuildingStats(targetBuilding.buildingId);
+            const damage = resolveDamage(creatureStats.attackDamage, creatureStats.attackType, {
+              armorType: bStats.armorType,
+              armor: bStats.armor,
+            });
+            targetBuilding.hp = Math.max(0, targetBuilding.hp - damage);
           }
           continue;
         }
@@ -876,8 +985,93 @@ export function stepWorld(world: WorldState): void {
         }
         continue;
       } else {
-        // Target gone — clear and fall through to normal castle march
+        // Target gone — clear and fall through to building/castle march
         unit.attackTargetId = undefined;
+        unit.chaseRecalcTick = undefined;
+      }
+    }
+
+    // If pursuing a building target, steer toward it
+    if (unit.attackTargetBuildingId) {
+      const targetBuilding = world.buildings.find((b) => b.id === unit.attackTargetBuildingId);
+      if (targetBuilding && targetBuilding.hp > 0) {
+        const startX = unit.x;
+        const startY = unit.y;
+        const bRect = buildingRect(targetBuilding);
+        const approachPt = closestPointOnRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+        const castleObstacles = castleObstacleRects(world);
+        const CHASE_RECALC_INTERVAL = 10;
+        const needsRecalc = !unit.chaseRecalcTick || (world.tick - unit.chaseRecalcTick) >= CHASE_RECALC_INTERVAL;
+
+        if (needsRecalc) {
+          unit.waypoints = findPath(
+            unit.x, unit.y,
+            approachPt.x, approachPt.y,
+            world.buildings,
+            castleObstacles,
+            creatureStats.hitboxRadius,
+            LANE_MIN_X, LANE_MAX_X, LANE_MIN_Y, LANE_MAX_Y,
+          );
+          unit.chaseRecalcTick = world.tick;
+        }
+
+        while (unit.waypoints.length > 0) {
+          const wp = unit.waypoints[0];
+          const dx = wp.x - unit.x;
+          const dy = wp.y - unit.y;
+          if (dx * dx + dy * dy <= WAYPOINT_REACH_DIST * WAYPOINT_REACH_DIST) {
+            unit.waypoints.shift();
+          } else {
+            break;
+          }
+        }
+
+        let targetX: number;
+        let targetY: number;
+        if (unit.waypoints.length > 0) {
+          targetX = unit.waypoints[0].x;
+          targetY = unit.waypoints[0].y;
+        } else {
+          targetX = approachPt.x;
+          targetY = approachPt.y;
+        }
+
+        const toTargetX = targetX - unit.x;
+        const toTargetY = targetY - unit.y;
+        const toTargetDist = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
+
+        if (toTargetDist > 0) {
+          const moveSpeed = Math.min(speed, toTargetDist);
+          unit.vx = (toTargetX / toTargetDist) * moveSpeed;
+          unit.vy = (toTargetY / toTargetDist) * moveSpeed;
+        }
+
+        unit.x += unit.vx;
+        unit.y += unit.vy;
+        moveDebugByUnitId.set(unit.id, {
+          mode: "chase",
+          fromX: startX,
+          fromY: startY,
+          intendedX: unit.x,
+          intendedY: unit.y,
+          targetX,
+          targetY,
+          waypointCount: unit.waypoints.length,
+        });
+
+        // Check if in attack range of target building
+        const dSq = distSqToRect(unit.x, unit.y, bRect.x, bRect.y, bRect.w, bRect.h);
+        const attackDist = r + creatureStats.attackRange;
+        if (dSq <= attackDist * attackDist) {
+          unit.vx = 0;
+          unit.vy = 0;
+          unit.state = "attacking_building";
+          unit.attackCycleStartTick = world.tick;
+        }
+        continue;
+      } else {
+        // Building gone — clear and fall through to normal castle march
+        unit.attackTargetBuildingId = undefined;
         unit.chaseRecalcTick = undefined;
       }
     }
@@ -1025,11 +1219,14 @@ export function stepWorld(world: WorldState): void {
   const COLLISION_ITERATIONS = 4;
   for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
     // Unit vs unit (circle vs circle, push apart)
+    // Flying units don't collide with ground units
     for (let i = 0; i < world.units.length; i++) {
       const a = world.units[i];
       const ra = getCreatureStats(a.creatureId).hitboxRadius;
       for (let j = i + 1; j < world.units.length; j++) {
         const b = world.units[j];
+        // Skip collision between flying and ground units
+        if (a.flying !== b.flying) continue;
         const rb = getCreatureStats(b.creatureId).hitboxRadius;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -1064,8 +1261,9 @@ export function stepWorld(world: WorldState): void {
       }
     }
 
-    // Unit vs buildings including castles (push out)
+    // Unit vs buildings including castles (push out) — flying units skip building collision
     for (const unit of world.units) {
+      if (unit.flying) continue;
       const r = getCreatureStats(unit.creatureId).hitboxRadius;
       for (const building of world.buildings) {
         const bStats = getBuildingStats(building.buildingId);
@@ -1327,6 +1525,24 @@ export function stepWorld(world: WorldState): void {
     }
   }
 
+  // Remove dead buildings (non-castle) and clean up target references
+  const deadBuildingIds = new Set(
+    world.buildings.filter((b) => b.hp <= 0 && b.buildingId !== "castle").map((b) => b.id),
+  );
+  if (deadBuildingIds.size > 0) {
+    world.buildings = world.buildings.filter((b) => !deadBuildingIds.has(b.id));
+    for (const unit of world.units) {
+      if (unit.attackTargetBuildingId && deadBuildingIds.has(unit.attackTargetBuildingId)) {
+        unit.attackTargetBuildingId = undefined;
+        unit.chaseRecalcTick = undefined;
+        if (unit.state === "attacking_building") {
+          unit.state = "moving";
+          unit.waypoints = [];
+        }
+      }
+    }
+  }
+
   // Remove dead units and clean up target references
   const deadIds = new Set(world.units.filter((u) => u.hp <= 0).map((u) => u.id));
   if (deadIds.size > 0) {
@@ -1406,6 +1622,7 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
           armor: stats.armor,
           hitboxRadius: stats.hitboxRadius,
           visionRange: stats.visionRange,
+          canFly: stats.canFly,
         },
       ];
     }),
@@ -1418,7 +1635,7 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
     units: world.units.map((u) => {
       const creatureStats = getCreatureStats(u.creatureId);
       const attackIntervalTicks = creatureStats.attackIntervalTicks;
-      const isAttacking = u.state === "attacking" || u.state === "attacking_unit";
+      const isAttacking = u.state === "attacking" || u.state === "attacking_unit" || u.state === "attacking_building";
       const attackCycleTick =
         isAttacking ? (world.tick - u.attackCycleStartTick) % attackIntervalTicks : undefined;
       const attackHitOffsetTicks = isAttacking ? getAttackHitOffsetTicks(u.creatureId) : undefined;
@@ -1434,6 +1651,7 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
         hp: u.hp,
         maxHp: creatureStats.hp,
         state: u.state,
+        flying: u.flying,
         attackCycleTick,
         attackIntervalTicks: isAttacking ? attackIntervalTicks : undefined,
         attackHitOffsetTicks,

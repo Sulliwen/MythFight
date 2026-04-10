@@ -288,6 +288,12 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     ws.send(JSON.stringify({ type: "force_spawn", buildingId }));
   }
 
+  function sendToggleFlight(unitId: string) {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "toggle_flight", unitId }));
+  }
+
   function sendUpdateCreatureStats(creatureId: string, stats: CreatureStatUpdatePayload) {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -319,6 +325,7 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     sendPlaceBuilding,
     sendToggleProduction,
     sendForceSpawn,
+    sendToggleFlight,
     sendUpdateCreatureStats,
   };
 }

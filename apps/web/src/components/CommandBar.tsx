@@ -13,6 +13,7 @@ type CommandBarProps = {
   controlledPlayer: PlayerId;
   onToggleProduction: (buildingId: string) => void;
   onForceSpawn: (buildingId: string) => void;
+  onToggleFlight: (unitId: string) => void;
 };
 
 function hpColor(ratio: number): string {
@@ -90,17 +91,20 @@ function BuildingStats({ buildingId }: { buildingId: BuildingId }) {
 function UnitInfo({
   unit,
 }: {
-  unit: { hp: number; maxHp: number; creatureId: CreatureId; state: string; owner: string };
+  unit: { hp: number; maxHp: number; creatureId: CreatureId; state: string; owner: string; flying: boolean };
 }) {
   const { t } = useTranslation();
   const ownerLabel = unit.owner === "player1" ? "J1" : "J2";
   const presentation = getCreaturePresentation(unit.creatureId);
-  const stateLabel =
-    unit.state === "moving"
+  const stateLabel = unit.flying
+    ? t("combat.state.flying")
+    : unit.state === "moving"
       ? t("combat.state.moving")
       : unit.state === "attacking_unit"
         ? t("combat.state.attackingUnit")
-        : t("combat.state.attacking");
+        : unit.state === "attacking_building"
+          ? t("combat.state.attackingBuilding")
+          : t("combat.state.attacking");
   return (
     <div className="cmd-bar__info">
       <strong className="cmd-bar__info-title">{t(presentation.unitNameKey)} ({ownerLabel})</strong>
@@ -136,6 +140,7 @@ export function CommandBar({
   controlledPlayer,
   onToggleProduction,
   onForceSpawn,
+  onToggleFlight,
 }: CommandBarProps) {
   const { t } = useTranslation();
   const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
@@ -145,6 +150,8 @@ export function CommandBar({
   let showBuildActions = false;
   let showBuildingActions = false;
   let selectedBuilding: { id: string; paused: boolean; owner: string } | null = null;
+  let showUnitActions = false;
+  let selectedUnit: { id: string; flying: boolean; canFly: boolean } | null = null;
 
   if (selection && latest) {
     if (selection.kind === "building") {
@@ -170,6 +177,11 @@ export function CommandBar({
       if (unit) {
         centerContent = <UnitInfo unit={unit} />;
         statsContent = <UnitStats creatureStats={latest.creatureStats?.[unit.creatureId]} />;
+        const creatureStatsSnap = latest.creatureStats?.[unit.creatureId];
+        if (unit.owner === controlledPlayer && creatureStatsSnap?.canFly) {
+          showUnitActions = true;
+          selectedUnit = { id: unit.id, flying: unit.flying, canFly: creatureStatsSnap.canFly };
+        }
       } else {
         centerContent = <span className="cmd-bar__center-empty">{t("ui.unitEliminated")}</span>;
       }
@@ -230,6 +242,29 @@ export function CommandBar({
           >
             {"\u26A1"}
           </button>
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+          <div className="cmd-bar__action-slot" />
+        </>
+      );
+    }
+
+    if (showUnitActions && selectedUnit) {
+      return (
+        <>
+          {selectedUnit.canFly && (
+            <button
+              type="button"
+              className={`cmd-bar__action-btn ${selectedUnit.flying ? "cmd-bar__action-btn--active" : ""}`}
+              onClick={() => onToggleFlight(selectedUnit!.id)}
+              disabled={disabled}
+              title={t("actions.toggleFlight")}
+            >
+              {"\u{1F985}"}
+            </button>
+          )}
+          <div className="cmd-bar__action-slot" />
           <div className="cmd-bar__action-slot" />
           <div className="cmd-bar__action-slot" />
           <div className="cmd-bar__action-slot" />

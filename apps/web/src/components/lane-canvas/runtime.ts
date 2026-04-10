@@ -38,6 +38,7 @@ function projectUnits(
         hp: unit.hp,
         maxHp: unit.maxHp,
         state: unit.state,
+        flying: unit.flying,
         attackCycleTick: unit.attackCycleTick,
         attackIntervalTicks: unit.attackIntervalTicks,
         attackHitOffsetTicks: unit.attackHitOffsetTicks,
@@ -64,6 +65,7 @@ const FALLBACK_CREATURE_STATS: CreatureStatsSnapshot = {
   armor: 50,
   hitboxRadius: 12,
   visionRange: 100,
+  canFly: false,
 };
 
 // Convert screen coordinates to world coordinates, clamping to valid building placement bounds
@@ -432,7 +434,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
         // Draw attack target points for attacking units (castle or unit)
         for (const u of latestForRange) {
-          if ((u.state !== "attacking" && u.state !== "attacking_unit") || u.attackTargetX == null || u.attackTargetY == null) continue;
+          if ((u.state !== "attacking" && u.state !== "attacking_unit" && u.state !== "attacking_building") || u.attackTargetX == null || u.attackTargetY == null) continue;
           const { screenX: ux, screenY: uy } = worldToScreen(u.x, u.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
           const { screenX: tx, screenY: ty } = worldToScreen(u.attackTargetX, u.attackTargetY, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
           // Line from unit to attack point

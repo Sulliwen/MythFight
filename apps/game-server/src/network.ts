@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { getBuildingActionPayload, getJoinPayload, getPlaceBuildingPayload, isNewGameMessage, isSpawnMessage, parseIncoming } from "./protocol.js";
 import { isCreatureId, updateCreatureStats, validateCreatureStatsUpdate, type CreatureId } from "./creatures.js";
-import { TICK_RATE, buildSnapshot, forceSpawnFromBuilding, placeBuilding, resetWorld, spawnUnit, toggleBuildingProduction } from "./world.js";
+import { TICK_RATE, buildSnapshot, forceSpawnFromBuilding, placeBuilding, resetWorld, spawnUnit, toggleBuildingProduction, toggleFlight } from "./world.js";
 import type { PlayerId, WorldState } from "./types.js";
 
 type ClientsMap = Map<WebSocket, PlayerId>;
@@ -127,6 +127,24 @@ export function handleConnection(
         return;
       }
       updateCreatureStats(creatureId as CreatureId, validatedStats.stats);
+      return;
+    }
+
+    if (message.type === "toggle_flight") {
+      const owner = clients.get(socket);
+      if (!owner) {
+        socket.send(JSON.stringify({ type: "error", reason: "must_join_first" }));
+        return;
+      }
+      const unitId = (message as Record<string, unknown>).unitId;
+      if (typeof unitId !== "string") {
+        socket.send(JSON.stringify({ type: "error", reason: "invalid_unit_id" }));
+        return;
+      }
+      const result = toggleFlight(world, owner, unitId);
+      if (!result.ok) {
+        socket.send(JSON.stringify({ type: "error", reason: result.reason }));
+      }
       return;
     }
 

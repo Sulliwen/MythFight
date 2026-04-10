@@ -59,6 +59,7 @@ export type InterpolatedUnit = {
   hp: number;
   maxHp: number;
   state: Unit["state"];
+  flying: boolean;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
@@ -75,6 +76,7 @@ export type ProjectedUnit = {
   hp: number;
   maxHp: number;
   state: Unit["state"];
+  flying: boolean;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;

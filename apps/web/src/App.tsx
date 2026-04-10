@@ -68,6 +68,7 @@ function App() {
     sendPlaceBuilding,
     sendToggleProduction,
     sendForceSpawn,
+    sendToggleFlight,
     sendUpdateCreatureStats,
   } = useGameSocket(controlledPlayer);
 
@@ -256,6 +257,7 @@ function App() {
               controlledPlayer={controlledPlayer}
               onToggleProduction={sendToggleProduction}
               onForceSpawn={sendForceSpawn}
+              onToggleFlight={sendToggleFlight}
             />
           )}
         </div>

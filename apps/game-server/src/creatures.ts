@@ -41,6 +41,7 @@ export type CreatureStats = {
   armor: number;
   hitboxRadius: number;
   visionRange: number;
+  canFly: boolean;
 };
 
 export const DEFAULT_CREATURE_ID: CreatureId = "golem";
@@ -59,6 +60,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     armor: 50,
     hitboxRadius: 12,
     visionRange: 100,
+    canFly: false,
   },
   soldier: {
     hp: 55,
@@ -73,6 +75,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     armor: 4,
     hitboxRadius: 9,
     visionRange: 110,
+    canFly: false,
   },
   griffon: {
     hp: 125,
@@ -87,6 +90,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     armor: 2,
     hitboxRadius: 14,
     visionRange: 150,
+    canFly: true,
   },
 };
 
@@ -173,8 +177,13 @@ const NUMERIC_CREATURE_STAT_KEYS = [
   "visionRange",
 ] as const;
 
+const BOOLEAN_CREATURE_STAT_KEYS = [
+  "canFly",
+] as const;
+
 const CREATURE_STAT_KEYS = [
   ...NUMERIC_CREATURE_STAT_KEYS,
+  ...BOOLEAN_CREATURE_STAT_KEYS,
   "attackType",
   "armorType",
 ] as const;
@@ -226,6 +235,15 @@ export function validateCreatureStatsUpdate(input: unknown): CreatureStatsUpdate
       return { ok: false, reason: "invalid_update_creature_armor_type" };
     }
     stats.armorType = rawStats.armorType;
+  }
+
+  for (const key of BOOLEAN_CREATURE_STAT_KEYS) {
+    const value = rawStats[key];
+    if (value === undefined) continue;
+    if (typeof value !== "boolean") {
+      return { ok: false, reason: "invalid_update_creature_stats_value" };
+    }
+    stats[key] = value;
   }
 
   return { ok: true, stats };

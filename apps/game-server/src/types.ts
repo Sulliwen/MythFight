@@ -2,7 +2,7 @@ import type { ArmorType, AttackType } from "./combat.js";
 import type { BuildingId, CreatureId } from "./creatures.js";
 
 export type PlayerId = "player1" | "player2";
-export type UnitState = "moving" | "attacking" | "attacking_unit";
+export type UnitState = "moving" | "attacking" | "attacking_unit" | "attacking_building";
 
 export type IncomingMessage = {
   type: string;
@@ -35,6 +35,7 @@ export type UnitSnapshot = {
   hp: number;
   maxHp: number;
   state: UnitState;
+  flying: boolean;
   attackCycleTick?: number;
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
@@ -56,6 +57,7 @@ export type Unit = UnitSnapshot & {
   prevX?: number;
   prevY?: number;
   facingFlipCount?: number;
+  canFly: boolean;
 };
 
 export type WorldState = {
@@ -88,6 +90,7 @@ export type CreatureStatsSnapshot = {
   armor: number;
   hitboxRadius: number;
   visionRange: number;
+  canFly: boolean;
 };
 
 export type SnapshotMessage = {

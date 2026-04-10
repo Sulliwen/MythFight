@@ -23,6 +23,7 @@ const fr = {
     resumeProduction: "Reprendre la production",
     stopProduction: "Arreter la production",
     forceSpawn: "Spawn immediat",
+    toggleFlight: "Vol",
     playPlayer1: "Jouer Player 1",
     playPlayer2: "Jouer Player 2",
   },
@@ -67,6 +68,8 @@ const fr = {
       moving: "En marche",
       attacking: "Attaque",
       attackingUnit: "Combat",
+      attackingBuilding: "Attaque batiment",
+      flying: "En vol",
     },
   },
   stats: {

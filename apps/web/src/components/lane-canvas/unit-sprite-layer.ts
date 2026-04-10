@@ -133,6 +133,7 @@ export class UnitSpriteLayer {
     soldier: { walk: [], attack: [], idle: [] },
     griffon: { walk: [], attack: [], idle: [] },
   };
+  private readonly flyTextureSets: Partial<Record<CreatureId, CreatureTextureSet>> = {};
 
   constructor(container: Container) {
     this.container = container;
@@ -149,6 +150,15 @@ export class UnitSpriteLayer {
             Promise.all(presentation.frames.idle.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))),
           ]);
           this.textureSets[creatureId] = { walk, attack, idle };
+
+          if (presentation.flyFrames) {
+            const [flyWalk, flyAttack, flyIdle] = await Promise.all([
+              Promise.all(presentation.flyFrames.walk.map((url) => Assets.load<Texture>(url))),
+              Promise.all(presentation.flyFrames.attack.map((url) => Assets.load<Texture>(url))),
+              Promise.all(presentation.flyFrames.idle.map((url) => Assets.load<Texture>(url))),
+            ]);
+            this.flyTextureSets[creatureId] = { walk: flyWalk, attack: flyAttack, idle: flyIdle };
+          }
         }),
       );
     } catch (error) {
@@ -171,7 +181,7 @@ export class UnitSpriteLayer {
 
       const animation = this.selectAnimation(unit);
       const mode = animation.mode;
-      const textures = this.getTexturesForMode(unit.creatureId, mode);
+      const textures = this.getTexturesForMode(unit.creatureId, mode, unit.flying);
       let entry = this.entries.get(unit.id);
 
       if (!entry && textures.length > 0) {
@@ -255,18 +265,22 @@ export class UnitSpriteLayer {
         }
       }
 
+      // Flying units float upward visually and are semi-transparent
+      const flyOffset = unit.flying ? -30 : 0;
+
       entry.sprite.scale.set(facingRight ? unit.renderScale : -unit.renderScale, unit.renderScale);
-      entry.sprite.position.set(unit.x, unit.y + unitYOffset);
+      entry.sprite.position.set(unit.x, unit.y + unitYOffset + flyOffset);
       entry.sprite.zIndex = unit.y;
       entry.sprite.tint = unit.owner === "player1" ? 0xe7f2ff : 0xffecec;
+      entry.sprite.alpha = unit.flying ? 0.7 : 1.0;
 
-      entry.label.position.set(unit.x, unit.y + unitYOffset + 4);
+      entry.label.position.set(unit.x, unit.y + unitYOffset + flyOffset + 4);
       entry.label.zIndex = unit.y + 0.1;
 
       const spriteHeight = entry.sprite.height;
       const ratio = unit.maxHp > 0 ? Math.max(0, unit.hp / unit.maxHp) : 0;
       const barX = unit.x - HP_BAR_WIDTH / 2;
-      const barY = unit.y + unitYOffset - spriteHeight + HP_BAR_OFFSET_Y;
+      const barY = unit.y + unitYOffset + flyOffset - spriteHeight + HP_BAR_OFFSET_Y;
 
       const g = entry.hpBar;
       g.clear();
@@ -324,18 +338,18 @@ export class UnitSpriteLayer {
     }
 
     const cycleLength = Math.max(1, unit.attackIntervalTicks ?? ATTACK_CYCLE_TICKS);
-    const attackFrameCount = Math.max(1, this.getTexturesForMode(unit.creatureId, "attack").length);
+    const attackFrameCount = Math.max(1, this.getTexturesForMode(unit.creatureId, "attack", unit.flying).length);
     const hitOffsetTick = unit.attackHitOffsetTicks ?? Math.floor((cycleLength * sfxFrameIndex) / attackFrameCount);
 
     return didCrossTick(previousCycleTick, attackCycleTick, hitOffsetTick, cycleLength);
   }
 
   private selectAnimation(unit: ProjectedUnit): UnitAnimationSelection {
-    if (unit.state !== "attacking" && unit.state !== "attacking_unit") {
+    if (unit.state !== "attacking" && unit.state !== "attacking_unit" && unit.state !== "attacking_building") {
       return { mode: "walk" };
     }
 
-    const attackFrameCount = this.getTexturesForMode(unit.creatureId, "attack").length;
+    const attackFrameCount = this.getTexturesForMode(unit.creatureId, "attack", unit.flying).length;
     if (attackFrameCount === 0) {
       return { mode: "walk" };
     }
@@ -397,8 +411,8 @@ export class UnitSpriteLayer {
     return WALK_ANIMATION_SPEED;
   }
 
-  private getTexturesForMode(creatureId: CreatureId, mode: UnitAnimationMode): Texture[] {
-    const textureSet = this.textureSets[creatureId];
+  private getTexturesForMode(creatureId: CreatureId, mode: UnitAnimationMode, flying = false): Texture[] {
+    const textureSet = (flying && this.flyTextureSets[creatureId]) ? this.flyTextureSets[creatureId] : this.textureSets[creatureId];
     const walkTextures = textureSet.walk.length > 0 ? textureSet.walk : textureSet.attack;
     const attackTextures = textureSet.attack.length > 0 ? textureSet.attack : textureSet.walk;
     const idleTextures = textureSet.idle.length > 0 ? textureSet.idle : walkTextures;

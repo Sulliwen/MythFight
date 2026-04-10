@@ -1,7 +1,7 @@
 import type { TranslationKey } from "./i18n";
 import type { CreatureId } from "./types";
 
-export const CREATURE_IDS: CreatureId[] = ["golem", "soldier", "griffon"];
+export const CREATURE_IDS: CreatureId[] = ["soldier", "golem", "griffon"];
 export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 
 type CreaturePresentation = {
@@ -9,6 +9,11 @@ type CreaturePresentation = {
   unitScale: number;
   attackSfxFrameIndex: number;
   frames: {
+    idle: string[];
+    walk: string[];
+    attack: string[];
+  };
+  flyFrames?: {
     idle: string[];
     walk: string[];
     attack: string[];
@@ -47,6 +52,11 @@ export const CREATURE_PRESENTATION: Record<CreatureId, CreaturePresentation> = {
     frames: {
       idle: buildFrameAssetUrls("/sprites/JC/creatures/griffon/idle", 6),
       walk: buildFrameAssetUrls("/sprites/JC/creatures/griffon/walk", 6),
+      attack: buildFrameAssetUrls("/sprites/JC/creatures/griffon/attack", 6),
+    },
+    flyFrames: {
+      idle: buildFrameAssetUrls("/sprites/JC/creatures/griffon/flight", 6),
+      walk: buildFrameAssetUrls("/sprites/JC/creatures/griffon/flight", 6),
       attack: buildFrameAssetUrls("/sprites/JC/creatures/griffon/attack", 6),
     },
   },
