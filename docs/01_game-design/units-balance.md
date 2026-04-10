@@ -22,7 +22,16 @@
 | Entite | Attack type | Armor type | Armor | Degats de base |
 |---|---|---|---:|---:|
 | Golem | Siege | Heavy | 50 | 50 |
+| Soldat | Normal | Medium | 4 | 18 |
+| Griffon | Magic | Medium | 2 | 34 |
 | Chateau | - | Fortified | 5 | - |
+
+### Profils de recrutement actuels
+| Unite | Producteur | HP unite | Vitesse | Portee | Vitesse atk | Vision | HP batiment | Cadence spawn |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Golem | Atelier du golem | 100 | 1.0 | 5 | 100 ticks | 100 | 200 | 100 ticks |
+| Soldat | Caserne | 55 | 1.8 | 10 | 28 ticks | 110 | 140 | 60 ticks |
+| Griffon | Perchoir | 125 | 1.4 | 18 | 40 ticks | 150 | 180 | 140 ticks |
 
 ## Colonnes recommandees
 - Faction
