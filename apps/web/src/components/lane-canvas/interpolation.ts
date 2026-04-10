@@ -34,12 +34,34 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
     const b = bMap.get(id);
 
     if (a && b) {
+      const interpVx = a.vx + (b.vx - a.vx) * alpha;
+
+      // Debug: detect vx sign difference between snapshots (facing trembling)
+      if (
+        Math.abs(a.vx) > 0.001 &&
+        Math.abs(b.vx) > 0.001 &&
+        (a.vx > 0) !== (b.vx > 0)
+      ) {
+        const key = `_flipLog_${id}`;
+        const now = performance.now();
+        const last = (window as any)[key] as number | undefined;
+        if (!last || now - last > 500) {
+          console.warn(
+            `[INTERP-VX-FLIP] ${id} a.vx=${a.vx.toFixed(3)} b.vx=${b.vx.toFixed(3)} alpha=${alpha.toFixed(3)} ` +
+            `interpVx=${interpVx.toFixed(3)} a.x=${a.x.toFixed(1)} b.x=${b.x.toFixed(1)} ` +
+            `a.state=${a.state} b.state=${b.state}`,
+          );
+          (window as any)[key] = now;
+        }
+      }
+
       result.push({
         id,
+        creatureId: b.creatureId,
         owner: b.owner,
         x: a.x + (b.x - a.x) * alpha,
         y: a.y + (b.y - a.y) * alpha,
-        vx: a.vx + (b.vx - a.vx) * alpha,
+        vx: interpVx,
         hp: alpha < 0.5 ? a.hp : b.hp,
         maxHp: b.maxHp,
         state: alpha < 0.5 ? a.state : b.state,
@@ -54,6 +76,7 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
     if (b) {
       result.push({
         id,
+        creatureId: b.creatureId,
         owner: b.owner,
         x: b.x,
         y: b.y,
@@ -72,6 +95,7 @@ export function interpolateUnits(aUnits: Unit[], bUnits: Unit[], alpha: number):
     if (a) {
       result.push({
         id,
+        creatureId: a.creatureId,
         owner: a.owner,
         x: a.x,
         y: a.y,

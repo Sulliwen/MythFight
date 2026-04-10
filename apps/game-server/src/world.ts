@@ -822,9 +822,33 @@ export function stepWorld(world: WorldState): void {
         const toTargetDist = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
 
         if (toTargetDist > 0) {
-          unit.vx = (toTargetX / toTargetDist) * speed;
-          unit.vy = (toTargetY / toTargetDist) * speed;
+          const moveSpeed = Math.min(speed, toTargetDist);
+          unit.vx = (toTargetX / toTargetDist) * moveSpeed;
+          unit.vy = (toTargetY / toTargetDist) * moveSpeed;
         }
+
+        // Debug: detect steering direction flip during chase
+        const prevChaseVx = (unit as any)._prevSteerVx as number | undefined;
+        if (
+          typeof prevChaseVx === "number" &&
+          Math.abs(prevChaseVx) > 0.001 &&
+          Math.abs(unit.vx) > 0.001 &&
+          (prevChaseVx > 0) !== (unit.vx > 0)
+        ) {
+          (unit as any)._steerFlipCount = ((unit as any)._steerFlipCount ?? 0) + 1;
+          if ((unit as any)._steerFlipCount >= 2) {
+            console.warn(
+              `[STEER-FLIP] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} ` +
+              `prevVx=${prevChaseVx.toFixed(3)} newVx=${unit.vx.toFixed(3)} ` +
+              `target=${formatPoint(targetX, targetY)} toTargetDist=${toTargetDist.toFixed(1)} ` +
+              `wp=${unit.waypoints.length} chaseTarget=${unit.attackTargetId} ` +
+              `wpSource=${unit.waypoints.length > 0 ? "waypoint" : "approach-point"}`,
+            );
+          }
+        } else {
+          (unit as any)._steerFlipCount = 0;
+        }
+        (unit as any)._prevSteerVx = unit.vx;
 
         unit.x += unit.vx;
         unit.y += unit.vy;
@@ -937,9 +961,34 @@ export function stepWorld(world: WorldState): void {
     const toTargetDist = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
 
     if (toTargetDist > 0) {
-      unit.vx = (toTargetX / toTargetDist) * speed;
-      unit.vy = (toTargetY / toTargetDist) * speed;
+      const moveSpeed = Math.min(speed, toTargetDist);
+      unit.vx = (toTargetX / toTargetDist) * moveSpeed;
+      unit.vy = (toTargetY / toTargetDist) * moveSpeed;
     }
+
+    // Debug: detect steering direction flip between consecutive ticks
+    const prevVx = unit.x - startX === 0 ? unit.vx : (unit as any)._prevSteerVx;
+    const newVx = unit.vx;
+    if (
+      typeof prevVx === "number" &&
+      Math.abs(prevVx) > 0.001 &&
+      Math.abs(newVx) > 0.001 &&
+      (prevVx > 0) !== (newVx > 0)
+    ) {
+      (unit as any)._steerFlipCount = ((unit as any)._steerFlipCount ?? 0) + 1;
+      if ((unit as any)._steerFlipCount >= 2) {
+        console.warn(
+          `[STEER-FLIP] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} ` +
+          `prevVx=${prevVx.toFixed(3)} newVx=${newVx.toFixed(3)} ` +
+          `target=${formatPoint(targetX, targetY)} toTargetDist=${toTargetDist.toFixed(1)} ` +
+          `wp=${unit.waypoints.length} hasAttackTarget=${!!unit.attackTargetId} ` +
+          `wpSource=${unit.waypoints.length > 0 ? "waypoint" : "castle-sampling"}`,
+        );
+      }
+    } else {
+      (unit as any)._steerFlipCount = 0;
+    }
+    (unit as any)._prevSteerVx = newVx;
 
     unit.x += unit.vx;
     unit.y += unit.vy;
@@ -1038,49 +1087,49 @@ export function stepWorld(world: WorldState): void {
     }
   }
 
-  // Debug: detect vx sign flip caused by collision resolution (facing trembling bug)
+  // Debug: detect position oscillation after collision (facing trembling bug)
+  // The snapshot sends u.vx (set before collision), but u.x is modified by collision.
+  // Compare effective displacement (post-collision) across consecutive ticks.
   for (const unit of world.units) {
-    if (unit.state !== "moving") continue;
     const moveDebug = moveDebugByUnitId.get(unit.id);
     if (!moveDebug) continue;
 
-    // Compute effective vx after collision (actual displacement this tick)
-    const effectiveVx = unit.x - moveDebug.fromX;
-    const intendedVx = unit.vx;
+    const effectiveDx = unit.x - moveDebug.fromX;
+    const prevEffectiveDx = (unit as any)._prevEffectiveDx as number | undefined;
+    (unit as any)._prevEffectiveDx = effectiveDx;
 
-    // Check if collision reversed the X direction
-    if (Math.abs(intendedVx) > 0.001 && Math.abs(effectiveVx) > 0.001) {
-      const intendedRight = intendedVx > 0;
-      const effectiveRight = effectiveVx > 0;
-      if (intendedRight !== effectiveRight) {
-        // Track consecutive flips
-        unit.facingFlipCount = (unit.facingFlipCount ?? 0) + 1;
-        if (unit.facingFlipCount >= 2) {
-          // Find nearby buildings for context
-          const nearbyBuildings: string[] = [];
-          for (const building of world.buildings) {
-            const bStats = getBuildingStats(building.buildingId);
-            const dx = unit.x - building.x;
-            const dy = unit.y - building.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < bStats.hitboxWidth + 50) {
-              nearbyBuildings.push(
-                `${building.id}@${formatPoint(building.x, building.y)} dist=${dist.toFixed(1)}`,
-              );
-            }
+    if (
+      typeof prevEffectiveDx === "number" &&
+      Math.abs(prevEffectiveDx) > 0.1 &&
+      Math.abs(effectiveDx) > 0.1 &&
+      (prevEffectiveDx > 0) !== (effectiveDx > 0)
+    ) {
+      unit.facingFlipCount = (unit.facingFlipCount ?? 0) + 1;
+      if (unit.facingFlipCount >= 2) {
+        const nearbyObstacles: string[] = [];
+        for (const building of world.buildings) {
+          const bStats = getBuildingStats(building.buildingId);
+          const dx = unit.x - building.x;
+          const dy = unit.y - building.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < bStats.hitboxWidth + 50) {
+            nearbyObstacles.push(
+              `${building.id}(${building.buildingId})@${formatPoint(building.x, building.y)} dist=${dist.toFixed(1)}`,
+            );
           }
-
-          console.warn(
-            `[FACING-TREMOR] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} ` +
-            `intendedVx=${intendedVx.toFixed(3)} effectiveVx=${effectiveVx.toFixed(3)} ` +
-            `target=${formatPoint(moveDebug.targetX, moveDebug.targetY)} ` +
-            `wp=${moveDebug.waypointCount} mode=${moveDebug.mode} ` +
-            `flips=${unit.facingFlipCount} nearObstacles=[${nearbyBuildings.join("; ")}]`,
-          );
         }
-      } else {
-        unit.facingFlipCount = 0;
+
+        console.warn(
+          `[BOUNCE] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} ` +
+          `effectiveDx=${effectiveDx.toFixed(3)} prevDx=${prevEffectiveDx.toFixed(3)} ` +
+          `intendedVx=${unit.vx.toFixed(3)} state=${unit.state} ` +
+          `target=${formatPoint(moveDebug.targetX, moveDebug.targetY)} ` +
+          `wp=${moveDebug.waypointCount} mode=${moveDebug.mode} ` +
+          `flips=${unit.facingFlipCount} nearObstacles=[${nearbyObstacles.join("; ")}]`,
+        );
       }
+    } else {
+      unit.facingFlipCount = 0;
     }
   }
 

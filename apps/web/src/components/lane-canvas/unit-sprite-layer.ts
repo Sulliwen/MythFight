@@ -1,6 +1,8 @@
 import { AnimatedSprite, Assets, type Container, Graphics, Text, type Texture } from "pixi.js";
-import { ATTACK_CYCLE_TICKS, GOLEM_ATTACK_FRAME_ASSET_URLS, GOLEM_IDLE_FRAME_ASSET_URLS, GOLEM_WALK_FRAME_ASSET_URLS } from "./constants";
+import { ATTACK_CYCLE_TICKS } from "./constants";
 import type { ProjectedUnit, UnitAnimationMode, UnitSpriteEntry } from "./types";
+import { CREATURE_IDS, getCreaturePresentation } from "../../creature-config";
+import type { CreatureId } from "../../types";
 
 const HP_BAR_WIDTH = 30;
 const HP_BAR_HEIGHT = 3;
@@ -20,12 +22,17 @@ function hpColor(ratio: number): number {
 const WALK_ANIMATION_SPEED = 0.14;
 const IDLE_ANIMATION_SPEED = 0.06;
 const MAX_ATTACK_TICKS_PER_FRAME_BEFORE_IDLE = 4;
-const GOLEM_ATTACK_SFX_FRAME_INDEX = 3; // frame 4/6 with 0-based indexing
 const ATTACK_SFX_MIN_INTERVAL_MS = 45;
 
 type UnitAnimationSelection = {
   mode: UnitAnimationMode;
   attackFrame?: number;
+};
+
+type CreatureTextureSet = {
+  walk: Texture[];
+  attack: Texture[];
+  idle: Texture[];
 };
 
 function positiveModulo(value: number, modulo: number): number {
@@ -107,7 +114,7 @@ function createAttackSfxPlayer(): AttackSfxPlayer {
         oscillator.stop(now + 0.12);
         lastPlayAt = nowMs;
       } catch (error) {
-        console.warn("Unable to play golem attack SFX.", error);
+        console.warn("Unable to play attack SFX.", error);
       }
     },
     destroy: () => {
@@ -121,9 +128,11 @@ export class UnitSpriteLayer {
   private readonly container: Container;
   private readonly entries = new Map<string, UnitSpriteEntry>();
   private readonly attackSfx = createAttackSfxPlayer();
-  private walkFrames: Texture[] = [];
-  private attackFrames: Texture[] = [];
-  private idleFrames: Texture[] = [];
+  private readonly textureSets: Record<CreatureId, CreatureTextureSet> = {
+    golem: { walk: [], attack: [], idle: [] },
+    soldier: { walk: [], attack: [], idle: [] },
+    griffon: { walk: [], attack: [], idle: [] },
+  };
 
   constructor(container: Container) {
     this.container = container;
@@ -131,36 +140,30 @@ export class UnitSpriteLayer {
 
   async loadFrames(): Promise<void> {
     try {
-      this.walkFrames = await Promise.all(
-        GOLEM_WALK_FRAME_ASSET_URLS.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))
+      await Promise.all(
+        CREATURE_IDS.map(async (creatureId) => {
+          const presentation = getCreaturePresentation(creatureId);
+          const [walk, attack, idle] = await Promise.all([
+            Promise.all(presentation.frames.walk.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))),
+            Promise.all(presentation.frames.attack.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))),
+            Promise.all(presentation.frames.idle.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))),
+          ]);
+          this.textureSets[creatureId] = { walk, attack, idle };
+        }),
       );
-      if (this.walkFrames.length === 0) {
-        console.warn("Golem walk animation loaded without frames.");
-      }
-
-      this.attackFrames = await Promise.all(
-        GOLEM_ATTACK_FRAME_ASSET_URLS.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))
-      );
-      if (this.attackFrames.length === 0) {
-        console.warn("Golem attack animation loaded without frames.");
-      }
-
-      this.idleFrames = await Promise.all(
-        GOLEM_IDLE_FRAME_ASSET_URLS.map((frameAssetUrl) => Assets.load<Texture>(frameAssetUrl))
-      );
-      if (this.idleFrames.length === 0) {
-        console.warn("Golem idle animation loaded without frames.");
-      }
     } catch (error) {
-      console.error("Unable to load golem animation frames.", error);
+      console.error("Unable to load unit animation frames.", error);
     }
   }
 
-  getReferenceFrameHeight(defaultHeight = 314): number {
-    return this.walkFrames[0]?.height ?? this.attackFrames[0]?.height ?? defaultHeight;
+  getReferenceFrameSize(creatureId: CreatureId, defaultSize = { width: 314, height: 314 }): { width: number; height: number } {
+    const textures = this.textureSets[creatureId];
+    const texture = textures.walk[0] ?? textures.attack[0] ?? textures.idle[0];
+    if (!texture) return defaultSize;
+    return { width: texture.width, height: texture.height };
   }
 
-  renderUnits(units: ProjectedUnit[], golemScale: number, unitYOffset: number): void {
+  renderUnits(units: ProjectedUnit[], unitYOffset: number): void {
     const visibleUnitIds = new Set<string>();
 
     for (const unit of units) {
@@ -168,7 +171,7 @@ export class UnitSpriteLayer {
 
       const animation = this.selectAnimation(unit);
       const mode = animation.mode;
-      const textures = this.getTexturesForMode(mode);
+      const textures = this.getTexturesForMode(unit.creatureId, mode);
       let entry = this.entries.get(unit.id);
 
       if (!entry && textures.length > 0) {
@@ -224,7 +227,35 @@ export class UnitSpriteLayer {
       }
 
       const facingRight = Math.abs(unit.vx) > 0.001 ? unit.vx >= 0 : unit.owner === "player1";
-      entry.sprite.scale.set(facingRight ? golemScale : -golemScale, golemScale);
+
+      // Debug: detect facing direction flip (trembling bug)
+      const prevFacingRight = entry.sprite.scale.x > 0;
+      if (prevFacingRight !== facingRight) {
+        const now = performance.now();
+        const lastFlipTime = (entry as any)._lastFlipTime as number | undefined;
+        const flipCount = ((entry as any)._flipCount as number | undefined) ?? 0;
+        const flipWindowStart = (entry as any)._flipWindowStart as number | undefined;
+
+        if (lastFlipTime && now - lastFlipTime < 200) {
+          (entry as any)._flipCount = flipCount + 1;
+          if (!flipWindowStart) (entry as any)._flipWindowStart = now;
+        } else {
+          (entry as any)._flipCount = 1;
+          (entry as any)._flipWindowStart = now;
+        }
+        (entry as any)._lastFlipTime = now;
+
+        const currentFlipCount = (entry as any)._flipCount as number;
+        if (currentFlipCount >= 3) {
+          console.warn(
+            `[FACING-FLIP] ${unit.id} flipped ${currentFlipCount}x in ${(now - ((entry as any)._flipWindowStart as number)).toFixed(0)}ms | ` +
+            `vx=${unit.vx.toFixed(4)} pos=(${unit.x.toFixed(1)},${unit.y.toFixed(1)}) ` +
+            `state=${unit.state} owner=${unit.owner} facingRight=${facingRight}`,
+          );
+        }
+      }
+
+      entry.sprite.scale.set(facingRight ? unit.renderScale : -unit.renderScale, unit.renderScale);
       entry.sprite.position.set(unit.x, unit.y + unitYOffset);
       entry.sprite.zIndex = unit.y;
       entry.sprite.tint = unit.owner === "player1" ? 0xe7f2ff : 0xffecec;
@@ -232,7 +263,6 @@ export class UnitSpriteLayer {
       entry.label.position.set(unit.x, unit.y + unitYOffset + 4);
       entry.label.zIndex = unit.y + 0.1;
 
-      // Draw HP bar above sprite
       const spriteHeight = entry.sprite.height;
       const ratio = unit.maxHp > 0 ? Math.max(0, unit.hp / unit.maxHp) : 0;
       const barX = unit.x - HP_BAR_WIDTH / 2;
@@ -241,19 +271,15 @@ export class UnitSpriteLayer {
       const g = entry.hpBar;
       g.clear();
       g.zIndex = unit.y + 0.2;
-
-      // Background
       g.rect(barX, barY, HP_BAR_WIDTH, HP_BAR_HEIGHT);
       g.fill({ color: HP_BAR_BG, alpha: 0.8 });
 
-      // Fill
       const fillWidth = HP_BAR_WIDTH * ratio;
       if (fillWidth > 0) {
         g.rect(barX, barY, fillWidth, HP_BAR_HEIGHT);
         g.fill({ color: hpColor(ratio), alpha: 0.9 });
       }
 
-      // Border
       g.rect(barX, barY, HP_BAR_WIDTH, HP_BAR_HEIGHT);
       g.stroke({ color: HP_BAR_BORDER, width: 1, alpha: 0.6 });
     }
@@ -288,16 +314,18 @@ export class UnitSpriteLayer {
   }
 
   private shouldPlayAttackSfx(entry: UnitSpriteEntry, unit: ProjectedUnit, attackFrame: number): boolean {
-    if (attackFrame !== GOLEM_ATTACK_SFX_FRAME_INDEX) return false;
+    const sfxFrameIndex = getCreaturePresentation(unit.creatureId).attackSfxFrameIndex;
+    if (attackFrame !== sfxFrameIndex) return false;
 
     const attackCycleTick = unit.attackCycleTick;
     const previousCycleTick = entry.lastAttackCycleTick;
     if (typeof attackCycleTick !== "number" || typeof previousCycleTick !== "number") {
-      return entry.lastAttackFrame !== GOLEM_ATTACK_SFX_FRAME_INDEX;
+      return entry.lastAttackFrame !== sfxFrameIndex;
     }
 
     const cycleLength = Math.max(1, unit.attackIntervalTicks ?? ATTACK_CYCLE_TICKS);
-    const hitOffsetTick = unit.attackHitOffsetTicks ?? Math.floor((cycleLength * GOLEM_ATTACK_SFX_FRAME_INDEX) / 6);
+    const attackFrameCount = Math.max(1, this.getTexturesForMode(unit.creatureId, "attack").length);
+    const hitOffsetTick = unit.attackHitOffsetTicks ?? Math.floor((cycleLength * sfxFrameIndex) / attackFrameCount);
 
     return didCrossTick(previousCycleTick, attackCycleTick, hitOffsetTick, cycleLength);
   }
@@ -307,7 +335,7 @@ export class UnitSpriteLayer {
       return { mode: "walk" };
     }
 
-    const attackFrameCount = this.getTexturesForMode("attack").length;
+    const attackFrameCount = this.getTexturesForMode(unit.creatureId, "attack").length;
     if (attackFrameCount === 0) {
       return { mode: "walk" };
     }
@@ -328,11 +356,11 @@ export class UnitSpriteLayer {
     const hitOffsetTick = positiveModulo(unit.attackHitOffsetTicks ?? Math.floor(attackCycleTicks / 2), attackCycleTicks);
     const hitFrameIndex = Math.max(
       0,
-      Math.min(attackFrameCount - 1, Math.floor((hitOffsetTick / attackCycleTicks) * attackFrameCount))
+      Math.min(attackFrameCount - 1, Math.floor((hitOffsetTick / attackCycleTicks) * attackFrameCount)),
     );
     const attackWindowStartTick = positiveModulo(
       hitOffsetTick - hitFrameIndex * idleAwareTicksPerFrame,
-      attackCycleTicks
+      attackCycleTicks,
     );
     const elapsedSinceWindowStart = positiveModulo(cycleTick - attackWindowStartTick, attackCycleTicks);
 
@@ -350,7 +378,7 @@ export class UnitSpriteLayer {
     sprite: AnimatedSprite,
     mode: UnitAnimationMode,
     textures: Texture[],
-    attackFrame: number | undefined
+    attackFrame: number | undefined,
   ): void {
     sprite.textures = textures;
     sprite.animationSpeed = this.getAnimationSpeed(mode);
@@ -369,16 +397,14 @@ export class UnitSpriteLayer {
     return WALK_ANIMATION_SPEED;
   }
 
-  private getTexturesForMode(mode: UnitAnimationMode): Texture[] {
-    const walkTextures = this.walkFrames.length > 0 ? this.walkFrames : this.attackFrames;
-    const attackTextures = this.attackFrames.length > 0 ? this.attackFrames : this.walkFrames;
-    const idleTextures = this.idleFrames.length > 0 ? this.idleFrames : walkTextures;
-    if (mode === "attack") {
-      return attackTextures;
-    }
-    if (mode === "idle") {
-      return idleTextures;
-    }
+  private getTexturesForMode(creatureId: CreatureId, mode: UnitAnimationMode): Texture[] {
+    const textureSet = this.textureSets[creatureId];
+    const walkTextures = textureSet.walk.length > 0 ? textureSet.walk : textureSet.attack;
+    const attackTextures = textureSet.attack.length > 0 ? textureSet.attack : textureSet.walk;
+    const idleTextures = textureSet.idle.length > 0 ? textureSet.idle : walkTextures;
+
+    if (mode === "attack") return attackTextures;
+    if (mode === "idle") return idleTextures;
     return walkTextures;
   }
 }
