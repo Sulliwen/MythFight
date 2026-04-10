@@ -87,11 +87,6 @@ const DAMAGE_MULTIPLIERS: DamageMultiplierTable = {
   },
 };
 
-export const CASTLE_DEFENSE_PROFILE: DefenseProfile = {
-  armorType: "fortified",
-  armor: 5,
-};
-
 export function isAttackType(value: unknown): value is AttackType {
   return typeof value === "string" && ATTACK_TYPES.includes(value as AttackType);
 }

@@ -1,5 +1,7 @@
 import { isArmorType, isAttackType, type ArmorType, type AttackType } from "./combat.js";
 
+// ── Creature IDs ────────────────────────────────────────────────────────────
+
 export const CREATURE_IDS = ["golem", "soldier", "griffon"] as const;
 
 export type CreatureId = (typeof CREATURE_IDS)[number];
@@ -7,6 +9,24 @@ export type CreatureId = (typeof CREATURE_IDS)[number];
 export function isCreatureId(value: unknown): value is CreatureId {
   return typeof value === "string" && CREATURE_IDS.includes(value as CreatureId);
 }
+
+// ── Building IDs ────────────────────────────────────────────────────────────
+
+export const BUILDING_IDS = ["castle", "golem_workshop", "barracks", "griffon_aery"] as const;
+
+export type BuildingId = (typeof BUILDING_IDS)[number];
+
+export function isBuildingId(value: unknown): value is BuildingId {
+  return typeof value === "string" && BUILDING_IDS.includes(value as BuildingId);
+}
+
+export const CREATURE_TO_BUILDING: Record<CreatureId, BuildingId> = {
+  golem: "golem_workshop",
+  soldier: "barracks",
+  griffon: "griffon_aery",
+};
+
+// ── Creature Stats ──────────────────────────────────────────────────────────
 
 export type CreatureStats = {
   hp: number;
@@ -23,46 +43,6 @@ export type CreatureStats = {
   visionRange: number;
 };
 
-export type BuildingStats = {
-  hp: number;
-  hitboxWidth: number;
-  hitboxHeight: number;
-  spawnIntervalTicks: number;
-  armorType: ArmorType;
-  armor: number;
-};
-
-const BUILDING_STATS: Record<CreatureId, BuildingStats> = {
-  golem: {
-    hp: 200,
-    hitboxWidth: 70,
-    hitboxHeight: 70,
-    spawnIntervalTicks: 1200, // 60 seconds at 20 TPS
-    armorType: "fortified",
-    armor: 10,
-  },
-  soldier: {
-    hp: 140,
-    hitboxWidth: 64,
-    hitboxHeight: 64,
-    spawnIntervalTicks: 600, // 30 seconds at 20 TPS
-    armorType: "fortified",
-    armor: 5,
-  },
-  griffon: {
-    hp: 180,
-    hitboxWidth: 78,
-    hitboxHeight: 78,
-    spawnIntervalTicks: 1400, // 70 seconds at 20 TPS
-    armorType: "fortified",
-    armor: 8,
-  },
-};
-
-export function getBuildingStats(creatureId: CreatureId): BuildingStats {
-  return BUILDING_STATS[creatureId];
-}
-
 export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 
 const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
@@ -74,7 +54,7 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
     attackRange: 5,
     attackIntervalTicks: 100,
     attackAnimationFrameCount: 6,
-    attackHitFrameIndex: 3, // 0-based -> frame 4/6
+    attackHitFrameIndex: 3,
     armorType: "heavy",
     armor: 50,
     hitboxRadius: 12,
@@ -110,6 +90,70 @@ const CREATURE_STATS: Record<CreatureId, CreatureStats> = {
   },
 };
 
+export function getCreatureStats(creatureId: CreatureId): CreatureStats {
+  return CREATURE_STATS[creatureId];
+}
+
+export function getAttackHitOffsetTicks(creatureId: CreatureId): number {
+  const stats = getCreatureStats(creatureId);
+  return Math.floor((stats.attackIntervalTicks * stats.attackHitFrameIndex) / stats.attackAnimationFrameCount);
+}
+
+// ── Building Stats ──────────────────────────────────────────────────────────
+
+export type BuildingStats = {
+  hp: number;
+  hitboxWidth: number;
+  hitboxHeight: number;
+  armorType: ArmorType;
+  armor: number;
+  spawnsCreature?: CreatureId;
+  spawnIntervalTicks?: number;
+};
+
+const BUILDING_STATS: Record<BuildingId, BuildingStats> = {
+  castle: {
+    hp: 1000,
+    hitboxWidth: 100,
+    hitboxHeight: 60,
+    armorType: "fortified",
+    armor: 50,
+  },
+  golem_workshop: {
+    hp: 200,
+    hitboxWidth: 70,
+    hitboxHeight: 70,
+    armorType: "fortified",
+    armor: 10,
+    spawnsCreature: "golem",
+    spawnIntervalTicks: 1200,
+  },
+  barracks: {
+    hp: 140,
+    hitboxWidth: 64,
+    hitboxHeight: 64,
+    armorType: "fortified",
+    armor: 5,
+    spawnsCreature: "soldier",
+    spawnIntervalTicks: 600,
+  },
+  griffon_aery: {
+    hp: 180,
+    hitboxWidth: 78,
+    hitboxHeight: 78,
+    armorType: "fortified",
+    armor: 8,
+    spawnsCreature: "griffon",
+    spawnIntervalTicks: 1400,
+  },
+};
+
+export function getBuildingStats(buildingId: BuildingId): BuildingStats {
+  return BUILDING_STATS[buildingId];
+}
+
+// ── Creature Stats Update (debug) ──────────────────────────────────────────
+
 export type CreatureStatsUpdate = Partial<CreatureStats>;
 
 type CreatureStatsUpdateValidationResult =
@@ -135,10 +179,6 @@ const CREATURE_STAT_KEYS = [
   "armorType",
 ] as const;
 
-export function getCreatureStats(creatureId: CreatureId): CreatureStats {
-  return CREATURE_STATS[creatureId];
-}
-
 export function updateCreatureStats(creatureId: CreatureId, partial: CreatureStatsUpdate): void {
   const stats = CREATURE_STATS[creatureId];
   if (!stats) return;
@@ -149,11 +189,6 @@ export function updateCreatureStats(creatureId: CreatureId, partial: CreatureSta
       stats[key] = nextValue as never;
     }
   }
-}
-
-export function getAttackHitOffsetTicks(creatureId: CreatureId): number {
-  const stats = getCreatureStats(creatureId);
-  return Math.floor((stats.attackIntervalTicks * stats.attackHitFrameIndex) / stats.attackAnimationFrameCount);
 }
 
 export function validateCreatureStatsUpdate(input: unknown): CreatureStatsUpdateValidationResult {

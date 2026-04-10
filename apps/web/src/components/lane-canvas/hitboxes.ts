@@ -1,8 +1,5 @@
 import type { ProjectedBuilding, ProjectedUnit } from "./types";
 
-const CASTLE_HITBOX_INSET_PX = 3;
-const MIN_HITBOX_SIZE_PX = 2;
-
 export type RectHitbox = {
   kind: "rect";
   id: string;
@@ -23,61 +20,12 @@ export type CircleHitbox = {
 export type GameHitbox = RectHitbox | CircleHitbox;
 
 type SceneHitboxInput = {
-  castles: {
-    player1: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
-    player2: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
-  };
   buildings: ProjectedBuilding[];
   units: ProjectedUnit[];
-  unitHitboxRadius: number;
 };
 
-function insetRect(
-  rect: { x: number; y: number; width: number; height: number },
-  insetPx: number
-): { x: number; y: number; width: number; height: number } {
-  const width = Math.max(MIN_HITBOX_SIZE_PX, rect.width - insetPx * 2);
-  const height = Math.max(MIN_HITBOX_SIZE_PX, rect.height - insetPx * 2);
-  return {
-    x: rect.x + insetPx,
-    y: rect.y + insetPx,
-    width,
-    height,
-  };
-}
-
 export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
-  const { castles, buildings, units, unitHitboxRadius } = input;
-  const castlePlayer1Rect = insetRect(castles.player1, CASTLE_HITBOX_INSET_PX);
-  const castlePlayer2Rect = insetRect(castles.player2, CASTLE_HITBOX_INSET_PX);
-
-  const castlePlayer1Hitbox: RectHitbox = {
-    kind: "rect",
-    id: "castle-player1",
-    x: castlePlayer1Rect.x,
-    y: castlePlayer1Rect.y,
-    width: castlePlayer1Rect.width,
-    height: castlePlayer1Rect.height,
-  };
-
-  const castlePlayer2Hitbox: RectHitbox = {
-    kind: "rect",
-    id: "castle-player2",
-    x: castlePlayer2Rect.x,
-    y: castlePlayer2Rect.y,
-    width: castlePlayer2Rect.width,
-    height: castlePlayer2Rect.height,
-  };
+  const { buildings, units } = input;
 
   const buildingHitboxes: RectHitbox[] = buildings.map((b) => ({
     kind: "rect",
@@ -89,8 +37,8 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
   }));
 
   const unitHitboxes: RectHitbox[] = units.map((unit) => {
-    const width = Math.max(unitHitboxRadius * 2, unit.selectionWidth);
-    const height = Math.max(unitHitboxRadius * 2, unit.selectionHeight);
+    const width = Math.max(unit.hitboxRadius * 2, unit.selectionWidth);
+    const height = Math.max(unit.hitboxRadius * 2, unit.selectionHeight);
     return {
       kind: "rect",
       id: `unit-${unit.id}`,
@@ -101,7 +49,7 @@ export function defineGameHitboxes(input: SceneHitboxInput): GameHitbox[] {
     };
   });
 
-  return [castlePlayer1Hitbox, castlePlayer2Hitbox, ...buildingHitboxes, ...unitHitboxes];
+  return [...buildingHitboxes, ...unitHitboxes];
 }
 
 export function hitTest(x: number, y: number, hitboxes: GameHitbox[]): GameHitbox | null {

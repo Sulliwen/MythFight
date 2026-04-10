@@ -1,5 +1,5 @@
-import { CASTLE_DEFENSE_PROFILE, resolveDamage } from "./combat.js";
-import { DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getBuildingStats, getCreatureStats, type CreatureId } from "./creatures.js";
+import { resolveDamage } from "./combat.js";
+import { CREATURE_IDS, CREATURE_TO_BUILDING, DEFAULT_CREATURE_ID, getAttackHitOffsetTicks, getBuildingStats, getCreatureStats, type BuildingId, type CreatureId } from "./creatures.js";
 import { findPath, findPathDetailed, type ObstacleRect } from "./pathfinding.js";
 import type { Building, PlayerId, SnapshotMessage, Unit, WorldState } from "./types.js";
 
@@ -21,35 +21,49 @@ export const CASTLE_HITBOX_W = 100;
 export const CASTLE_HITBOX_H = 60;
 export const CASTLE_HITBOX_BOTTOM_INSET =12; // how far up from visual bottom the hitbox bottom sits
 
-const CASTLE_VISUAL_BOTTOM = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2; // 330
-const CASTLE_HITBOX_BOTTOM = CASTLE_VISUAL_BOTTOM - CASTLE_HITBOX_BOTTOM_INSET;
-const CASTLE_RECTS = [
-  { owner: "player1" as const, x: CASTLE_PLAYER1_X - CASTLE_HITBOX_W / 2, y: CASTLE_HITBOX_BOTTOM - CASTLE_HITBOX_H, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
-  { owner: "player2" as const, x: CASTLE_PLAYER2_X - CASTLE_HITBOX_W / 2, y: CASTLE_HITBOX_BOTTOM - CASTLE_HITBOX_H, w: CASTLE_HITBOX_W, h: CASTLE_HITBOX_H },
-];
+function buildingRect(b: Building): { x: number; y: number; w: number; h: number } {
+  const s = getBuildingStats(b.buildingId);
+  return { x: b.x - s.hitboxWidth / 2, y: b.y - s.hitboxHeight / 2, w: s.hitboxWidth, h: s.hitboxHeight };
+}
+
+function getEnemyCastle(world: WorldState, owner: PlayerId): Building {
+  return world.buildings.find((b) => b.buildingId === "castle" && b.owner !== owner)!;
+}
+
+function getOwnCastle(world: WorldState, owner: PlayerId): Building {
+  return world.buildings.find((b) => b.buildingId === "castle" && b.owner === owner)!;
+}
+
+function castleObstacleRects(world: WorldState): { x: number; y: number; w: number; h: number }[] {
+  return world.buildings.filter((b) => b.buildingId === "castle").map(buildingRect);
+}
 
 export function createWorld(): WorldState {
+  const castleStats = getBuildingStats("castle");
+  const castleHitboxCenterY = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2 - CASTLE_HITBOX_BOTTOM_INSET - castleStats.hitboxHeight / 2;
   return {
     tick: 0,
     nextUnitId: 1,
     nextBuildingId: 1,
-    castle: {
-      player1: 1000,
-      player2: 1000,
-    },
     units: [],
-    buildings: [],
+    buildings: [
+      { id: "castle-p1", owner: "player1", buildingId: "castle", x: CASTLE_PLAYER1_X, y: castleHitboxCenterY, hp: castleStats.hp, maxHp: castleStats.hp, spawnTicksRemaining: 0, spawnIntervalTicks: 0, paused: false },
+      { id: "castle-p2", owner: "player2", buildingId: "castle", x: CASTLE_PLAYER2_X, y: castleHitboxCenterY, hp: castleStats.hp, maxHp: castleStats.hp, spawnTicksRemaining: 0, spawnIntervalTicks: 0, paused: false },
+    ],
   };
 }
 
 export function resetWorld(world: WorldState): void {
+  const castleStats = getBuildingStats("castle");
+  const castleHitboxCenterY = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2 - CASTLE_HITBOX_BOTTOM_INSET - castleStats.hitboxHeight / 2;
   world.tick = 0;
   world.nextUnitId = 1;
   world.nextBuildingId = 1;
-  world.castle.player1 = 1000;
-  world.castle.player2 = 1000;
   world.units = [];
-  world.buildings = [];
+  world.buildings = [
+    { id: "castle-p1", owner: "player1", buildingId: "castle", x: CASTLE_PLAYER1_X, y: castleHitboxCenterY, hp: castleStats.hp, maxHp: castleStats.hp, spawnTicksRemaining: 0, spawnIntervalTicks: 0, paused: false },
+    { id: "castle-p2", owner: "player2", buildingId: "castle", x: CASTLE_PLAYER2_X, y: castleHitboxCenterY, hp: castleStats.hp, maxHp: castleStats.hp, spawnTicksRemaining: 0, spawnIntervalTicks: 0, paused: false },
+  ];
 }
 
 type PlaceBuildingResult =
@@ -63,7 +77,8 @@ export function placeBuilding(
   y: number,
   creatureId: CreatureId = DEFAULT_CREATURE_ID,
 ): PlaceBuildingResult {
-  const stats = getBuildingStats(creatureId);
+  const buildingId: BuildingId = CREATURE_TO_BUILDING[creatureId];
+  const stats = getBuildingStats(buildingId);
   const hw = stats.hitboxWidth / 2;
   const hh = stats.hitboxHeight / 2;
 
@@ -83,7 +98,7 @@ export function placeBuilding(
 
   // Must not overlap existing buildings (AABB collision)
   for (const existing of world.buildings) {
-    const eStats = getBuildingStats(existing.creatureId);
+    const eStats = getBuildingStats(existing.buildingId);
     const eHw = eStats.hitboxWidth / 2;
     const eHh = eStats.hitboxHeight / 2;
     if (
@@ -99,13 +114,13 @@ export function placeBuilding(
   const building: Building = {
     id: `b${world.nextBuildingId++}`,
     owner,
-    creatureId,
+    buildingId,
     x,
     y,
     hp: stats.hp,
     maxHp: stats.hp,
-    spawnTicksRemaining: stats.spawnIntervalTicks,
-    spawnIntervalTicks: stats.spawnIntervalTicks,
+    spawnTicksRemaining: stats.spawnIntervalTicks ?? 0,
+    spawnIntervalTicks: stats.spawnIntervalTicks ?? 0,
     paused: false,
   };
   world.buildings.push(building);
@@ -120,26 +135,25 @@ function recalcAllPaths(world: WorldState): void {
   const movingUnits = world.units.filter((u) => u.state === "moving");
   for (const unit of movingUnits) {
     const creatureStats = getCreatureStats(unit.creatureId);
-    const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
-    const nearestEdge = closestPointOnRect(unit.x, unit.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+    const enemyCastle = getEnemyCastle(world, unit.owner);
+    const ecRect = buildingRect(enemyCastle);
+    const nearestEdge = closestPointOnRect(unit.x, unit.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
     const targetX = nearestEdge.x;
     const targetY = nearestEdge.y;
     const oldWpCount = unit.waypoints.length;
-    const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
     unit.waypoints = findPath(
       unit.x, unit.y,
       targetX, targetY,
       world.buildings,
-      castleObstacles,
+      castleObstacleRects(world),
       creatureStats.hitboxRadius,
       LANE_MIN_X, LANE_MAX_X, LANE_MIN_Y, LANE_MAX_Y,
     );
     const approachMargin = creatureStats.attackRange + creatureStats.hitboxRadius + 40;
     const approachMarginSq = approachMargin * approachMargin;
-    const enemyCastle2 = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
     while (unit.waypoints.length > 1) {
       const last = unit.waypoints[unit.waypoints.length - 1];
-      const dSq = distSqToRect(last.x, last.y, enemyCastle2.x, enemyCastle2.y, enemyCastle2.w, enemyCastle2.h);
+      const dSq = distSqToRect(last.x, last.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
       if (dSq < approachMarginSq) {
         unit.waypoints.pop();
       } else {
@@ -154,16 +168,18 @@ type SpawnUnitResult =
   | { ok: false; reason: string };
 
 function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
-  const creatureStats = getCreatureStats(building.creatureId);
-  const bStats = getBuildingStats(building.creatureId);
+  const spawnCreatureId = getBuildingStats(building.buildingId).spawnsCreature!;
+  const creatureStats = getCreatureStats(spawnCreatureId);
+  const bStats = getBuildingStats(building.buildingId);
 
   // Target the nearest edge of the enemy castle, not its center
-  const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== building.owner)!;
-  const nearestEdge = closestPointOnRect(building.x, building.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+  const enemyCastle = getEnemyCastle(world, building.owner);
+  const ecRect = buildingRect(enemyCastle);
+  const nearestEdge = closestPointOnRect(building.x, building.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
   const targetX = nearestEdge.x;
   const targetY = nearestEdge.y;
 
-  const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
+  const castleObstacles = castleObstacleRects(world);
   const waypoints = findPath(
     building.x, building.y,
     targetX, targetY,
@@ -179,7 +195,7 @@ function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
   const approachMarginSq = approachMargin * approachMargin;
   while (waypoints.length > 1) {
     const last = waypoints[waypoints.length - 1];
-    const dSq = distSqToRect(last.x, last.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+    const dSq = distSqToRect(last.x, last.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
     if (dSq < approachMarginSq) {
       waypoints.pop();
     } else {
@@ -207,7 +223,7 @@ function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
 
   const unit: Unit = {
     id: `u${world.nextUnitId++}`,
-    creatureId: building.creatureId,
+    creatureId: spawnCreatureId,
     owner: building.owner,
     x: spawnX,
     y: spawnY,
@@ -226,16 +242,18 @@ function spawnUnitFromBuilding(world: WorldState, building: Building): Unit {
 function spawnUnitFromCastle(world: WorldState, owner: PlayerId, creatureId: CreatureId): Unit {
   const creatureStats = getCreatureStats(creatureId);
 
-  const castleRect = CASTLE_RECTS.find((cr) => cr.owner === owner)!;
+  const ownCastle = getOwnCastle(world, owner);
+  const castleRect = buildingRect(ownCastle);
   const castleCenterX = castleRect.x + castleRect.w / 2;
   const castleCenterY = castleRect.y + castleRect.h / 2;
 
-  const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== owner)!;
-  const nearestEdge = closestPointOnRect(castleCenterX, castleCenterY, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+  const enemyCastle = getEnemyCastle(world, owner);
+  const ecRect = buildingRect(enemyCastle);
+  const nearestEdge = closestPointOnRect(castleCenterX, castleCenterY, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
   const targetX = nearestEdge.x;
   const targetY = nearestEdge.y;
 
-  const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
+  const castleObstacles = castleObstacleRects(world);
   const waypoints = findPath(
     castleCenterX, castleCenterY,
     targetX, targetY,
@@ -249,7 +267,7 @@ function spawnUnitFromCastle(world: WorldState, owner: PlayerId, creatureId: Cre
   const approachMarginSq = approachMargin * approachMargin;
   while (waypoints.length > 1) {
     const last = waypoints[waypoints.length - 1];
-    const dSq = distSqToRect(last.x, last.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+    const dSq = distSqToRect(last.x, last.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
     if (dSq < approachMarginSq) {
       waypoints.pop();
     } else {
@@ -315,9 +333,9 @@ type ForceSpawnResult =
 export function forceSpawnFromBuilding(world: WorldState, owner: PlayerId, buildingId: string): ForceSpawnResult {
   const building = world.buildings.find((b) => b.id === buildingId && b.owner === owner);
   if (!building) return { ok: false, reason: "building_not_found" };
-  const stats = getBuildingStats(building.creatureId);
+  const stats = getBuildingStats(building.buildingId);
   const unit = spawnUnitFromBuilding(world, building);
-  building.spawnTicksRemaining = stats.spawnIntervalTicks;
+  building.spawnTicksRemaining = stats.spawnIntervalTicks ?? 0;
   return { ok: true, unit };
 }
 
@@ -426,7 +444,7 @@ function buildStuckDebugContext(world: WorldState, unit: Unit, moveDebug?: MoveD
   let rectCollisions = "none";
   const rectOverlaps: string[] = [];
   for (const building of world.buildings) {
-    const buildingStats = getBuildingStats(building.creatureId);
+    const buildingStats = getBuildingStats(building.buildingId);
     const sep = resolveCircleVsRect(
       unit.x,
       unit.y,
@@ -438,12 +456,6 @@ function buildStuckDebugContext(world: WorldState, unit: Unit, moveDebug?: MoveD
     );
     if (sep) {
       rectOverlaps.push(`building:${building.id}:${sep.dx.toFixed(1)}/${sep.dy.toFixed(1)}`);
-    }
-  }
-  for (const castle of CASTLE_RECTS) {
-    const sep = resolveCircleVsRect(unit.x, unit.y, stats.hitboxRadius, castle.x, castle.y, castle.w, castle.h);
-    if (sep) {
-      rectOverlaps.push(`castle:${castle.owner}:${sep.dx.toFixed(1)}/${sep.dy.toFixed(1)}`);
     }
   }
   if (rectOverlaps.length > 0) {
@@ -473,7 +485,7 @@ type EscapePlan = {
 
 function overlapsStaticObstacles(world: WorldState, x: number, y: number, radius: number): boolean {
   for (const building of world.buildings) {
-    const stats = getBuildingStats(building.creatureId);
+    const stats = getBuildingStats(building.buildingId);
     const sep = resolveCircleVsRect(
       x,
       y,
@@ -483,11 +495,6 @@ function overlapsStaticObstacles(world: WorldState, x: number, y: number, radius
       stats.hitboxWidth,
       stats.hitboxHeight,
     );
-    if (sep) return true;
-  }
-
-  for (const castle of CASTLE_RECTS) {
-    const sep = resolveCircleVsRect(x, y, radius, castle.x, castle.y, castle.w, castle.h);
     if (sep) return true;
   }
 
@@ -632,11 +639,12 @@ export function stepWorld(world: WorldState): void {
   // Auto-spawn: each building produces units on a timer (skip paused)
   for (const building of world.buildings) {
     if (building.paused) continue;
+    const bStats = getBuildingStats(building.buildingId);
+    if (!bStats.spawnsCreature || !bStats.spawnIntervalTicks) continue;
     building.spawnTicksRemaining -= 1;
     if (building.spawnTicksRemaining <= 0) {
-      const stats = getBuildingStats(building.creatureId);
       spawnUnitFromBuilding(world, building);
-      building.spawnTicksRemaining = stats.spawnIntervalTicks;
+      building.spawnTicksRemaining = bStats.spawnIntervalTicks;
     }
   }
 
@@ -733,8 +741,9 @@ export function stepWorld(world: WorldState): void {
 
     // Handle attacking (castle) state
     if (unit.state === "attacking") {
-      const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
-      const dSqToCastle = distSqToRect(unit.x, unit.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+      const enemyCastleBuilding = getEnemyCastle(world, unit.owner);
+      const ecRect = buildingRect(enemyCastleBuilding);
+      const dSqToCastle = distSqToRect(unit.x, unit.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
       const maxAttackDist = creatureStats.hitboxRadius + creatureStats.attackRange;
       if (dSqToCastle > maxAttackDist * maxAttackDist) {
         // Out of range — resume moving toward castle
@@ -742,19 +751,16 @@ export function stepWorld(world: WorldState): void {
         unit.waypoints = [];
       } else {
         // In range — compute attack target point (closest point on castle hitbox)
-        const atkPt = closestPointOnRect(unit.x, unit.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+        const atkPt = closestPointOnRect(unit.x, unit.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
         unit.attackTargetX = atkPt.x;
         unit.attackTargetY = atkPt.y;
 
         // Deal damage on attack tick
         const attackCycleTick = (world.tick - unit.attackCycleStartTick) % creatureStats.attackIntervalTicks;
         if (attackCycleTick === getAttackHitOffsetTicks(unit.creatureId)) {
-          const damage = resolveDamage(creatureStats.attackDamage, creatureStats.attackType, CASTLE_DEFENSE_PROFILE);
-          if (unit.owner === "player1") {
-            world.castle.player2 = Math.max(0, world.castle.player2 - damage);
-          } else {
-            world.castle.player1 = Math.max(0, world.castle.player1 - damage);
-          }
+          const castleDefense = getBuildingStats("castle");
+          const damage = resolveDamage(creatureStats.attackDamage, creatureStats.attackType, { armorType: castleDefense.armorType, armor: castleDefense.armor });
+          enemyCastleBuilding.hp = Math.max(0, enemyCastleBuilding.hp - damage);
         }
         continue;
       }
@@ -771,7 +777,7 @@ export function stepWorld(world: WorldState): void {
       if (target && target.hp > 0) {
         const startX = unit.x;
         const startY = unit.y;
-        const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
+        const castleObstacles = castleObstacleRects(world);
         const approachPoint = findChaseApproachPoint(world, unit, target, castleObstacles);
         const CHASE_RECALC_INTERVAL = 10; // recalculate path every 10 ticks
         const needsRecalc = !unit.chaseRecalcTick || (world.tick - unit.chaseRecalcTick) >= CHASE_RECALC_INTERVAL;
@@ -874,13 +880,14 @@ export function stepWorld(world: WorldState): void {
       targetX = unit.waypoints[0].x;
       targetY = unit.waypoints[0].y;
     } else {
-      const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
+      const enemyCastle = getEnemyCastle(world, unit.owner);
+      const ecRectVal = buildingRect(enemyCastle);
       // Find a position around the castle that isn't crowded by other units
-      const ecx = enemyCastle.x + enemyCastle.w / 2;
-      const ecy = enemyCastle.y + enemyCastle.h / 2;
+      const ecx = ecRectVal.x + ecRectVal.w / 2;
+      const ecy = ecRectVal.y + ecRectVal.h / 2;
       const standoff = r + creatureStats.attackRange * 0.8;
-      const hw = enemyCastle.w / 2 + standoff;
-      const hh = enemyCastle.h / 2 + standoff;
+      const hw = ecRectVal.w / 2 + standoff;
+      const hh = ecRectVal.h / 2 + standoff;
 
       // Sample positions around the castle perimeter
       const SAMPLES = 20;
@@ -949,8 +956,9 @@ export function stepWorld(world: WorldState): void {
 
     // Attack check: enemy castle within attack range (only if not pursuing a unit)
     if (!unit.attackTargetId) {
-      for (const cr of CASTLE_RECTS) {
-        if (cr.owner !== unit.owner && unit.state === "moving") {
+      for (const castleBuilding of world.buildings.filter(b => b.buildingId === "castle")) {
+        if (castleBuilding.owner !== unit.owner && unit.state === "moving") {
+          const cr = buildingRect(castleBuilding);
           const dSq = distSqToRect(unit.x, unit.y, cr.x, cr.y, cr.w, cr.h);
           const attackDist = r + creatureStats.attackRange;
           if (dSq <= attackDist * attackDist) {
@@ -1007,26 +1015,14 @@ export function stepWorld(world: WorldState): void {
       }
     }
 
-    // Unit vs buildings (push out)
+    // Unit vs buildings including castles (push out)
     for (const unit of world.units) {
       const r = getCreatureStats(unit.creatureId).hitboxRadius;
       for (const building of world.buildings) {
-        const bStats = getBuildingStats(building.creatureId);
+        const bStats = getBuildingStats(building.buildingId);
         const bx = building.x - bStats.hitboxWidth / 2;
         const by = building.y - bStats.hitboxHeight / 2;
         const sep = resolveCircleVsRect(unit.x, unit.y, r, bx, by, bStats.hitboxWidth, bStats.hitboxHeight);
-        if (sep) {
-          unit.x += sep.dx;
-          unit.y += sep.dy;
-        }
-      }
-    }
-
-    // Unit vs castles (push out)
-    for (const unit of world.units) {
-      const r = getCreatureStats(unit.creatureId).hitboxRadius;
-      for (const cr of CASTLE_RECTS) {
-        const sep = resolveCircleVsRect(unit.x, unit.y, r, cr.x, cr.y, cr.w, cr.h);
         if (sep) {
           unit.x += sep.dx;
           unit.y += sep.dy;
@@ -1042,12 +1038,58 @@ export function stepWorld(world: WorldState): void {
     }
   }
 
+  // Debug: detect vx sign flip caused by collision resolution (facing trembling bug)
+  for (const unit of world.units) {
+    if (unit.state !== "moving") continue;
+    const moveDebug = moveDebugByUnitId.get(unit.id);
+    if (!moveDebug) continue;
+
+    // Compute effective vx after collision (actual displacement this tick)
+    const effectiveVx = unit.x - moveDebug.fromX;
+    const intendedVx = unit.vx;
+
+    // Check if collision reversed the X direction
+    if (Math.abs(intendedVx) > 0.001 && Math.abs(effectiveVx) > 0.001) {
+      const intendedRight = intendedVx > 0;
+      const effectiveRight = effectiveVx > 0;
+      if (intendedRight !== effectiveRight) {
+        // Track consecutive flips
+        unit.facingFlipCount = (unit.facingFlipCount ?? 0) + 1;
+        if (unit.facingFlipCount >= 2) {
+          // Find nearby buildings for context
+          const nearbyBuildings: string[] = [];
+          for (const building of world.buildings) {
+            const bStats = getBuildingStats(building.buildingId);
+            const dx = unit.x - building.x;
+            const dy = unit.y - building.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bStats.hitboxWidth + 50) {
+              nearbyBuildings.push(
+                `${building.id}@${formatPoint(building.x, building.y)} dist=${dist.toFixed(1)}`,
+              );
+            }
+          }
+
+          console.warn(
+            `[FACING-TREMOR] ${unit.id} tick=${world.tick} pos=${formatPoint(unit.x, unit.y)} ` +
+            `intendedVx=${intendedVx.toFixed(3)} effectiveVx=${effectiveVx.toFixed(3)} ` +
+            `target=${formatPoint(moveDebug.targetX, moveDebug.targetY)} ` +
+            `wp=${moveDebug.waypointCount} mode=${moveDebug.mode} ` +
+            `flips=${unit.facingFlipCount} nearObstacles=[${nearbyBuildings.join("; ")}]`,
+          );
+        }
+      } else {
+        unit.facingFlipCount = 0;
+      }
+    }
+  }
+
   // Re-check attack range after all collisions (push-apart may have moved units out of range)
   for (const unit of world.units) {
     if (unit.state === "attacking") {
       const creatureStats = getCreatureStats(unit.creatureId);
-      const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
-      const dSq = distSqToRect(unit.x, unit.y, enemyCastle.x, enemyCastle.y, enemyCastle.w, enemyCastle.h);
+      const ecRect = buildingRect(getEnemyCastle(world, unit.owner));
+      const dSq = distSqToRect(unit.x, unit.y, ecRect.x, ecRect.y, ecRect.w, ecRect.h);
       const maxDist = creatureStats.hitboxRadius + creatureStats.attackRange;
       if (dSq > maxDist * maxDist) {
         unit.state = "moving";
@@ -1110,7 +1152,7 @@ export function stepWorld(world: WorldState): void {
     if (unit.stuckTicks >= STUCK_TICKS_BEFORE_REPATH) {
       // Build obstacle list including attacking units (treated as circular obstacles)
       const creatureStats = getCreatureStats(unit.creatureId);
-      const castleObstacles = CASTLE_RECTS.map((cr) => ({ x: cr.x, y: cr.y, w: cr.w, h: cr.h }));
+      const castleObstacles = castleObstacleRects(world);
       // Inflate attacking unit obstacles so they block multiple grid cells (cell size = 20)
       const inflateRadius = creatureStats.hitboxRadius * 3;
       const attackingUnits = world.units
@@ -1120,7 +1162,7 @@ export function stepWorld(world: WorldState): void {
         return { x: u.x - inflateRadius, y: u.y - inflateRadius, w: inflateRadius * 2, h: inflateRadius * 2 };
       });
 
-      const enemyCastle = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
+      const enemyCastle = buildingRect(getEnemyCastle(world, unit.owner));
       let targetX: number;
       let targetY: number;
       if (unit.attackTargetId) {
@@ -1262,7 +1304,7 @@ export function stepWorld(world: WorldState): void {
 
       // Check attack range violation
       if (unit.state === "attacking") {
-        const ec = CASTLE_RECTS.find((cr) => cr.owner !== unit.owner)!;
+        const ec = buildingRect(getEnemyCastle(world, unit.owner));
         const dist = Math.sqrt(distSqToRect(unit.x, unit.y, ec.x, ec.y, ec.w, ec.h));
         const maxDist = r + stats.attackRange;
         if (dist > maxDist) {
@@ -1283,22 +1325,14 @@ export function stepWorld(world: WorldState): void {
         }
       }
 
-      // Check unit-building overlap
+      // Check unit-building overlap (includes castles)
       for (const b of world.buildings) {
-        const bs = getBuildingStats(b.creatureId);
+        const bs = getBuildingStats(b.buildingId);
         const bx = b.x - bs.hitboxWidth / 2;
         const by = b.y - bs.hitboxHeight / 2;
         const sep = resolveCircleVsRect(unit.x, unit.y, r, bx, by, bs.hitboxWidth, bs.hitboxHeight);
         if (sep && (Math.abs(sep.dx) > 1 || Math.abs(sep.dy) > 1)) {
           violations.push(`[BLDG-COL] ${unit.id} inside building ${b.id} sep=(${sep.dx.toFixed(1)},${sep.dy.toFixed(1)})`);
-        }
-      }
-
-      // Check unit-castle overlap
-      for (const cr of CASTLE_RECTS) {
-        const sep = resolveCircleVsRect(unit.x, unit.y, r, cr.x, cr.y, cr.w, cr.h);
-        if (sep && (Math.abs(sep.dx) > 1 || Math.abs(sep.dy) > 1)) {
-          violations.push(`[CASTLE-COL] ${unit.id} inside castle ${cr.owner} sep=(${sep.dx.toFixed(1)},${sep.dy.toFixed(1)})`);
         }
       }
     }
@@ -1307,18 +1341,31 @@ export function stepWorld(world: WorldState): void {
 }
 
 export function buildSnapshot(world: WorldState): SnapshotMessage {
+  const creatureStats = Object.fromEntries(
+    CREATURE_IDS.map((creatureId) => {
+      const stats = getCreatureStats(creatureId);
+      return [
+        creatureId,
+        {
+          hp: stats.hp,
+          moveSpeedPerTick: stats.moveSpeedPerTick,
+          attackDamage: stats.attackDamage,
+          attackType: stats.attackType,
+          attackRange: stats.attackRange,
+          attackIntervalTicks: stats.attackIntervalTicks,
+          armorType: stats.armorType,
+          armor: stats.armor,
+          hitboxRadius: stats.hitboxRadius,
+          visionRange: stats.visionRange,
+        },
+      ];
+    }),
+  ) as SnapshotMessage["creatureStats"];
+
   return {
     type: "snapshot",
     tick: world.tick,
     serverTime: Date.now(),
-    castle: {
-      player1: world.castle.player1,
-      player2: world.castle.player2,
-    },
-    castleRects: {
-      player1: { x: CASTLE_RECTS[0].x, y: CASTLE_RECTS[0].y, w: CASTLE_RECTS[0].w, h: CASTLE_RECTS[0].h },
-      player2: { x: CASTLE_RECTS[1].x, y: CASTLE_RECTS[1].y, w: CASTLE_RECTS[1].w, h: CASTLE_RECTS[1].h },
-    },
     units: world.units.map((u) => {
       const creatureStats = getCreatureStats(u.creatureId);
       const attackIntervalTicks = creatureStats.attackIntervalTicks;
@@ -1350,7 +1397,7 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
     buildings: world.buildings.map((b) => ({
       id: b.id,
       owner: b.owner,
-      creatureId: b.creatureId,
+      buildingId: b.buildingId,
       x: b.x,
       y: b.y,
       hp: b.hp,
@@ -1359,19 +1406,6 @@ export function buildSnapshot(world: WorldState): SnapshotMessage {
       spawnIntervalTicks: b.spawnIntervalTicks,
       paused: b.paused,
     })),
-    creatureStats: {
-      golem: {
-        hp: getCreatureStats("golem").hp,
-        moveSpeedPerTick: getCreatureStats("golem").moveSpeedPerTick,
-        attackDamage: getCreatureStats("golem").attackDamage,
-        attackType: getCreatureStats("golem").attackType,
-        attackRange: getCreatureStats("golem").attackRange,
-        attackIntervalTicks: getCreatureStats("golem").attackIntervalTicks,
-        armorType: getCreatureStats("golem").armorType,
-        armor: getCreatureStats("golem").armor,
-        hitboxRadius: getCreatureStats("golem").hitboxRadius,
-        visionRange: getCreatureStats("golem").visionRange,
-      },
-    },
+    creatureStats,
   };
 }

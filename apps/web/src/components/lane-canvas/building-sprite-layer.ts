@@ -1,6 +1,7 @@
 import { Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
-import { GOLEM_HOUSE_TEXTURE_URL } from "./constants";
 import type { ProjectedBuilding } from "./types";
+import { BUILDING_IDS, getBuildingPresentation } from "../../building-config";
+import type { BuildingId } from "../../types";
 
 const HP_BAR_WIDTH = 40;
 const HP_BAR_HEIGHT = 4;
@@ -25,7 +26,7 @@ type BuildingEntry = {
 export class BuildingSpriteLayer {
   private readonly container: Container;
   private readonly entries = new Map<string, BuildingEntry>();
-  private texture: Texture | null = null;
+  private readonly textures = new Map<BuildingId, Texture>();
 
   constructor(container: Container) {
     this.container = container;
@@ -33,23 +34,29 @@ export class BuildingSpriteLayer {
 
   async loadTextures(): Promise<void> {
     try {
-      this.texture = await Assets.load<Texture>(GOLEM_HOUSE_TEXTURE_URL);
+      await Promise.all(
+        BUILDING_IDS.map(async (buildingId) => {
+          const texture = await Assets.load<Texture>(getBuildingPresentation(buildingId).textureUrl);
+          this.textures.set(buildingId, texture);
+        }),
+      );
     } catch (error) {
       console.error("Unable to load building textures.", error);
     }
   }
 
   renderBuildings(buildings: ProjectedBuilding[]): void {
-    if (!this.texture) return;
-
     const visibleIds = new Set<string>();
 
     for (const building of buildings) {
+      const texture = this.textures.get(building.buildingId);
+      if (!texture) continue;
+
       visibleIds.add(building.id);
 
       let entry = this.entries.get(building.id);
       if (!entry) {
-        const sprite = new Sprite(this.texture);
+        const sprite = new Sprite(texture);
         sprite.anchor.set(0.5, 0.5);
 
         const hpBar = new Graphics();
@@ -59,14 +66,16 @@ export class BuildingSpriteLayer {
         this.entries.set(building.id, entry);
       }
 
-      // Size sprite to match world hitbox dimensions (already in screen pixels)
+      if (entry.sprite.texture !== texture) {
+        entry.sprite.texture = texture;
+      }
+
       entry.sprite.width = building.spriteWidth;
       entry.sprite.height = building.spriteHeight;
       entry.sprite.position.set(building.x, building.y);
       entry.sprite.zIndex = building.y;
       entry.sprite.tint = 0xffffff;
 
-      // Draw HP bar above the building sprite
       const ratio = building.maxHp > 0 ? Math.max(0, building.hp / building.maxHp) : 0;
       const barX = building.x - HP_BAR_WIDTH / 2;
       const barY = building.y - building.spriteHeight / 2 + HP_BAR_OFFSET_Y;
@@ -74,19 +83,15 @@ export class BuildingSpriteLayer {
       const g = entry.hpBar;
       g.clear();
       g.zIndex = building.y + 0.1;
-
-      // Background
       g.rect(barX, barY, HP_BAR_WIDTH, HP_BAR_HEIGHT);
       g.fill({ color: HP_BAR_BG, alpha: 0.8 });
 
-      // Fill
       const fillWidth = HP_BAR_WIDTH * ratio;
       if (fillWidth > 0) {
         g.rect(barX, barY, fillWidth, HP_BAR_HEIGHT);
         g.fill({ color: hpColor(ratio), alpha: 0.9 });
       }
 
-      // Border
       g.rect(barX, barY, HP_BAR_WIDTH, HP_BAR_HEIGHT);
       g.stroke({ color: HP_BAR_BORDER, width: 1, alpha: 0.6 });
     }

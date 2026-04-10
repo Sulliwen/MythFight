@@ -1,13 +1,14 @@
 export type PlayerId = "player1" | "player2";
 export type UnitState = "moving" | "attacking" | "attacking_unit";
-export type CreatureId = "golem";
+export type CreatureId = "golem" | "soldier" | "griffon";
+export type BuildingId = "castle" | "golem_workshop" | "barracks" | "griffon_aery";
 export type AttackType = "normal" | "piercing" | "siege" | "magic" | "chaos" | "spells" | "hero";
 export type ArmorType = "light" | "medium" | "heavy" | "fortified" | "hero" | "unarmored";
 
 export type BuildingSnapshot = {
   id: string;
   owner: PlayerId;
-  creatureId: CreatureId;
+  buildingId: BuildingId;
   x: number;
   y: number;
   hp: number;
@@ -61,28 +62,13 @@ export type CreatureStatsSnapshot = {
   visionRange: number;
 };
 
-export type CastleRect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
 export type SnapshotMsg = {
   type: "snapshot";
   tick: number;
   serverTime: number;
-  castle: {
-    player1: number;
-    player2: number;
-  };
-  castleRects?: {
-    player1: CastleRect;
-    player2: CastleRect;
-  };
   units: Unit[];
   buildings: BuildingSnapshot[];
-  creatureStats?: Record<string, CreatureStatsSnapshot>;
+  creatureStats?: Record<CreatureId, CreatureStatsSnapshot>;
 };
 
 export type PongMsg = {
@@ -94,7 +80,6 @@ export type PongMsg = {
 export type ServerMsg = WelcomeMsg | ErrorMsg | SnapshotMsg | PongMsg;
 
 export type SelectionTarget =
-  | { kind: "castle"; owner: PlayerId }
   | { kind: "building"; id: string }
   | { kind: "unit"; id: string }
   | null;

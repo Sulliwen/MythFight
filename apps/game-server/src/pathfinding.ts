@@ -28,7 +28,7 @@ function buildGrid(
 
   // Block building rects
   for (const b of buildings) {
-    const stats = getBuildingStats(b.creatureId);
+    const stats = getBuildingStats(b.buildingId);
     const bx1 = b.x - stats.hitboxWidth / 2;
     const by1 = b.y - stats.hitboxHeight / 2;
     const bx2 = b.x + stats.hitboxWidth / 2;
@@ -218,7 +218,7 @@ export function findPathDetailed(
   // Unblock the spawn building's cells so the unit can exit
   // Find the building at the start position and unblock all its cells
   for (const b of buildings) {
-    const stats = getBuildingStats(b.creatureId);
+    const stats = getBuildingStats(b.buildingId);
     const bx1 = b.x - stats.hitboxWidth / 2;
     const by1 = b.y - stats.hitboxHeight / 2;
     const bx2 = b.x + stats.hitboxWidth / 2;
@@ -270,7 +270,7 @@ export function findPathDetailed(
   // Find the spawn building rect to skip waypoints inside it
   let spawnRect: { x1: number; y1: number; x2: number; y2: number } | null = null;
   for (const b of buildings) {
-    const stats = getBuildingStats(b.creatureId);
+    const stats = getBuildingStats(b.buildingId);
     const bx1 = b.x - stats.hitboxWidth / 2;
     const by1 = b.y - stats.hitboxHeight / 2;
     const bx2 = b.x + stats.hitboxWidth / 2;

@@ -90,6 +90,18 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
   const [rttMs, setRttMs] = useState<number>(0);
   const [simulatedLagMs, setSimulatedLagMs] = useState<number>(0);
 
+  const deriveCastleHpFromBuildings = (buildings: SnapshotMsg["buildings"]): { player1: number; player2: number } => {
+    let p1 = 0;
+    let p2 = 0;
+    for (const b of buildings) {
+      if (b.buildingId === "castle") {
+        if (b.owner === "player1") p1 = b.hp;
+        else if (b.owner === "player2") p2 = b.hp;
+      }
+    }
+    return { player1: p1, player2: p2 };
+  };
+
   const applySnapshot = (data: SnapshotMsg) => {
     if (lastServerTickRef.current !== null && data.tick < lastServerTickRef.current) {
       setRoundId((prev) => prev + 1);
@@ -97,11 +109,12 @@ export function useGameSocket(playerIdInput: PlayerId = "player1") {
     lastServerTickRef.current = data.tick;
 
     setServerTick(data.tick);
-    setCastleHp(data.castle);
+    const hp = deriveCastleHpFromBuildings(data.buildings);
+    setCastleHp(hp);
     setUnitsCount(data.units.length);
 
     const hpTimerId = window.setTimeout(() => {
-      setDisplayCastleHp(data.castle);
+      setDisplayCastleHp(hp);
       pendingDisplayHpTimersRef.current = pendingDisplayHpTimersRef.current.filter((id) => id !== hpTimerId);
     }, INTERPOLATION_DELAY_MS);
     pendingDisplayHpTimersRef.current.push(hpTimerId);

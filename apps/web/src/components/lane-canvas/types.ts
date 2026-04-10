@@ -1,6 +1,6 @@
 import type { AnimatedSprite, Graphics, Text } from "pixi.js";
 import type { MutableRefObject } from "react";
-import type { CreatureId, PlayerId, SelectionTarget, SnapshotMsg, Unit } from "../../types";
+import type { BuildingId, CreatureId, PlayerId, SelectionTarget, SnapshotMsg, Unit } from "../../types";
 
 export type BuildMode = {
   active: boolean;
@@ -88,7 +88,7 @@ export type ProjectedUnit = {
 export type ProjectedBuilding = {
   id: string;
   owner: PlayerId;
-  creatureId: CreatureId;
+  buildingId: BuildingId;
   x: number;
   y: number;
   hp: number;

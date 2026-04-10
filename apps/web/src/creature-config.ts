@@ -1,22 +1,11 @@
 import type { TranslationKey } from "./i18n";
-import type { ArmorType, CreatureId } from "./types";
+import type { CreatureId } from "./types";
 
 export const CREATURE_IDS: CreatureId[] = ["golem", "soldier", "griffon"];
 export const DEFAULT_CREATURE_ID: CreatureId = "golem";
 
-type CreatureBuildingStats = {
-  hp: number;
-  hitboxWidth: number;
-  hitboxHeight: number;
-  spawnIntervalTicks: number;
-  armorType: ArmorType;
-  armor: number;
-};
-
 type CreaturePresentation = {
   unitNameKey: TranslationKey;
-  buildingNameKey: TranslationKey;
-  buildingTextureUrl: string;
   unitScale: number;
   attackSfxFrameIndex: number;
   frames: {
@@ -26,33 +15,6 @@ type CreaturePresentation = {
   };
 };
 
-export const CREATURE_BUILDING_STATS: Record<CreatureId, CreatureBuildingStats> = {
-  golem: {
-    hp: 200,
-    hitboxWidth: 70,
-    hitboxHeight: 70,
-    spawnIntervalTicks: 1200,
-    armorType: "fortified",
-    armor: 10,
-  },
-  soldier: {
-    hp: 140,
-    hitboxWidth: 64,
-    hitboxHeight: 64,
-    spawnIntervalTicks: 600,
-    armorType: "fortified",
-    armor: 5,
-  },
-  griffon: {
-    hp: 180,
-    hitboxWidth: 78,
-    hitboxHeight: 78,
-    spawnIntervalTicks: 1400,
-    armorType: "fortified",
-    armor: 8,
-  },
-};
-
 function buildFrameAssetUrls(basePath: string, frameCount: number): string[] {
   return Array.from({ length: frameCount }, (_, index) => `${basePath}/${index + 1}.png`);
 }
@@ -60,8 +22,6 @@ function buildFrameAssetUrls(basePath: string, frameCount: number): string[] {
 export const CREATURE_PRESENTATION: Record<CreatureId, CreaturePresentation> = {
   golem: {
     unitNameKey: "units.golem",
-    buildingNameKey: "buildings.golem",
-    buildingTextureUrl: "/sprites/JC/buildings/Golem_house.png",
     unitScale: 1,
     attackSfxFrameIndex: 3,
     frames: {
@@ -72,8 +32,6 @@ export const CREATURE_PRESENTATION: Record<CreatureId, CreaturePresentation> = {
   },
   soldier: {
     unitNameKey: "units.soldier",
-    buildingNameKey: "buildings.soldier",
-    buildingTextureUrl: "/sprites/JC/buildings/barracks.png",
     unitScale: 0.72,
     attackSfxFrameIndex: 3,
     frames: {
@@ -84,8 +42,6 @@ export const CREATURE_PRESENTATION: Record<CreatureId, CreaturePresentation> = {
   },
   griffon: {
     unitNameKey: "units.griffon",
-    buildingNameKey: "buildings.griffon",
-    buildingTextureUrl: "/sprites/JC/buildings/griffon_aery.png",
     unitScale: 0.88,
     attackSfxFrameIndex: 3,
     frames: {
@@ -98,9 +54,4 @@ export const CREATURE_PRESENTATION: Record<CreatureId, CreaturePresentation> = {
 
 export function getCreaturePresentation(creatureId: CreatureId): CreaturePresentation {
   return CREATURE_PRESENTATION[creatureId];
-}
-
-export function getBuildingFootprint(creatureId: CreatureId): { width: number; height: number } {
-  const stats = CREATURE_BUILDING_STATS[creatureId];
-  return { width: stats.hitboxWidth, height: stats.hitboxHeight };
 }

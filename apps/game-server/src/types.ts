@@ -1,5 +1,5 @@
 import type { ArmorType, AttackType } from "./combat.js";
-import type { CreatureId } from "./creatures.js";
+import type { BuildingId, CreatureId } from "./creatures.js";
 
 export type PlayerId = "player1" | "player2";
 export type UnitState = "moving" | "attacking" | "attacking_unit";
@@ -12,7 +12,7 @@ export type IncomingMessage = {
 export type BuildingSnapshot = {
   id: string;
   owner: PlayerId;
-  creatureId: CreatureId;
+  buildingId: BuildingId;
   x: number;
   y: number;
   hp: number;
@@ -50,20 +50,18 @@ export type Unit = UnitSnapshot & {
   attackCycleStartTick: number;
   waypoints: Waypoint[];
   attackTargetId?: string;
+  attackTargetBuildingId?: string;
   chaseRecalcTick?: number;
   stuckTicks?: number;
   prevX?: number;
   prevY?: number;
+  facingFlipCount?: number;
 };
 
 export type WorldState = {
   tick: number;
   nextUnitId: number;
   nextBuildingId: number;
-  castle: {
-    player1: number;
-    player2: number;
-  };
   units: Unit[];
   buildings: Building[];
 };
@@ -92,26 +90,11 @@ export type CreatureStatsSnapshot = {
   visionRange: number;
 };
 
-export type CastleRect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
 export type SnapshotMessage = {
   type: "snapshot";
   tick: number;
   serverTime: number;
-  castle: {
-    player1: number;
-    player2: number;
-  };
-  castleRects: {
-    player1: CastleRect;
-    player2: CastleRect;
-  };
   units: UnitSnapshot[];
   buildings: BuildingSnapshot[];
-  creatureStats: Record<string, CreatureStatsSnapshot>;
+  creatureStats: Record<CreatureId, CreatureStatsSnapshot>;
 };

@@ -1,7 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import {
-  CASTLE_PLAYER1_TEXTURE_URL,
-  CASTLE_PLAYER2_TEXTURE_URL,
   INTERPOLATION_DELAY_MS,
   WORLD_MAX_X,
   WORLD_MAX_Y,
@@ -15,7 +13,8 @@ import { getInterpolationPair, interpolateUnits } from "./interpolation";
 import { clamp, getCanvasSize } from "./math";
 import { UnitSpriteLayer } from "./unit-sprite-layer";
 import type { LaneCanvasRuntimeBindings, ProjectedBuilding, ProjectedUnit } from "./types";
-import { CREATURE_IDS, DEFAULT_CREATURE_ID, getBuildingFootprint, getCreaturePresentation } from "../../creature-config";
+import { CREATURE_IDS, DEFAULT_CREATURE_ID, getCreaturePresentation } from "../../creature-config";
+import { getBuildingFootprint, getBuildingSpriteSize, getBuildingPresentation, CREATURE_TO_BUILDING } from "../../building-config";
 import type { CreatureId, CreatureStatsSnapshot, SnapshotMsg } from "../../types";
 
 function projectUnits(
@@ -52,18 +51,6 @@ function projectUnits(
     .sort((left, right) => left.y - right.y);
 }
 
-// Castle visual position (fixed — matches server)
-const CASTLE_VISUAL_CENTER_Y = 280;
-const CASTLE_VISUAL_H = 100;
-const CASTLE_P1_X = 120;
-const CASTLE_P2_X = 880;
-// Fallback castle hitbox (used before first snapshot arrives)
-const CASTLE_COL_W = 100;
-const CASTLE_COL_H = 60;
-const CASTLE_COL_BOTTOM_INSET = 20;
-const CASTLE_COL_BOTTOM = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2 - CASTLE_COL_BOTTOM_INSET;
-const CASTLE_COL_P1 = { x: CASTLE_P1_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
-const CASTLE_COL_P2 = { x: CASTLE_P2_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
 const PATHFINDING_CELL_SIZE = 20;
 
 const FALLBACK_CREATURE_STATS: CreatureStatsSnapshot = {
@@ -89,7 +76,8 @@ function screenToWorld(
   gameAreaHeight: number,
   creatureId: CreatureId,
 ): { worldX: number; worldY: number } {
-  const footprint = getBuildingFootprint(creatureId);
+  const buildingId = CREATURE_TO_BUILDING[creatureId];
+  const footprint = getBuildingFootprint(buildingId);
   const rawX = WORLD_MIN_X + ((screenX - gameAreaX) / gameAreaWidth) * (WORLD_MAX_X - WORLD_MIN_X);
   const rawY = WORLD_MIN_Y + ((screenY - gameAreaY) / gameAreaHeight) * (WORLD_MAX_Y - WORLD_MIN_Y);
   const worldX = clamp(rawX, WORLD_MIN_X + footprint.width / 2, WORLD_MAX_X - footprint.width / 2);
@@ -102,18 +90,19 @@ function isValidBuildingPlacement(
   worldY: number,
   player: "player1" | "player2",
   creatureId: CreatureId,
-  existingBuildings: { x: number; y: number; creatureId: CreatureId }[],
+  existingBuildings: { x: number; y: number; buildingId: string }[],
 ): boolean {
   // Must be on own side
   const midX = (WORLD_MIN_X + WORLD_MAX_X) / 2;
   if (player === "player1" ? worldX > midX : worldX < midX) return false;
 
   // Must not overlap existing buildings (AABB collision)
-  const footprint = getBuildingFootprint(creatureId);
+  const buildingId = CREATURE_TO_BUILDING[creatureId];
+  const footprint = getBuildingFootprint(buildingId);
   const hw = footprint.width / 2;
   const hh = footprint.height / 2;
   for (const b of existingBuildings) {
-    const existingFootprint = getBuildingFootprint(b.creatureId);
+    const existingFootprint = getBuildingFootprint(b.buildingId as any);
     const eHw = existingFootprint.width / 2;
     const eHh = existingFootprint.height / 2;
     if (
@@ -139,15 +128,6 @@ function worldToScreen(
   const screenX = gameAreaX + ((worldX - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
   const screenY = gameAreaY + ((worldY - WORLD_MIN_Y) / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
   return { screenX, screenY };
-}
-
-function worldRectToScreen(
-  cx: number, cy: number, w: number, h: number,
-  gaX: number, gaY: number, gaW: number, gaH: number,
-): { x: number; y: number; w: number; h: number } {
-  const sx = gaX + ((cx - w / 2 - WORLD_MIN_X) / (WORLD_MAX_X - WORLD_MIN_X)) * gaW;
-  const sy = gaY + ((cy - h / 2 - WORLD_MIN_Y) / (WORLD_MAX_Y - WORLD_MIN_Y)) * gaH;
-  return { x: sx, y: sy, w: (w / (WORLD_MAX_X - WORLD_MIN_X)) * gaW, h: (h / (WORLD_MAX_Y - WORLD_MIN_Y)) * gaH };
 }
 
 function worldToScreenRadius(r: number, gaW: number): number {
@@ -179,8 +159,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
   let destroyed = false;
   let app: Application | null = null;
-  let castlePlayer1Sprite: Sprite | null = null;
-  let castlePlayer2Sprite: Sprite | null = null;
   let unitContainer: Container | null = null;
   let buildingContainer: Container | null = null;
   let imageOutlineGraphics: Graphics | null = null;
@@ -188,7 +166,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let buildingSpriteLayer: BuildingSpriteLayer | null = null;
   let ghostSprite: Sprite | null = null;
   const ghostTextures = new Map<CreatureId, Texture>();
-  let castleHpGraphics: Graphics | null = null;
   let collisionDebugGraphics: Graphics | null = null;
   let gridDebugGraphics: Graphics | null = null;
   let visionDebugGraphics: Graphics | null = null;
@@ -242,10 +219,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       onSelectRef.current?.(null);
       return;
     }
-    if (hit.id.startsWith("castle-")) {
-      const owner = hit.id.replace("castle-", "") as "player1" | "player2";
-      onSelectRef.current?.({ kind: "castle", owner });
-    } else if (hit.id.startsWith("building-")) {
+    if (hit.id.startsWith("building-")) {
       onSelectRef.current?.({ kind: "building", id: hit.id.replace("building-", "") });
     } else if (hit.id.startsWith("unit-")) {
       onSelectRef.current?.({ kind: "unit", id: hit.id.replace("unit-", "") });
@@ -255,8 +229,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   const renderFrame = () => {
     if (
       !app ||
-      !castlePlayer1Sprite ||
-      !castlePlayer2Sprite ||
       !unitSpriteLayer ||
       !buildingSpriteLayer ||
       !imageOutlineGraphics
@@ -274,80 +246,25 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     const gameAreaHeight = height;
     currentGameArea = { x: gameAreaX, y: gameAreaY, width: gameAreaWidth, height: gameAreaHeight };
 
-    // Read castle hitbox rects from server snapshot (top-left corner + size)
-    const latestSnapshot = snapshotsRef.current.length > 0 ? snapshotsRef.current[snapshotsRef.current.length - 1] : null;
-    const cr1 = latestSnapshot?.castleRects?.player1 ?? CASTLE_COL_P1;
-    const cr2 = latestSnapshot?.castleRects?.player2 ?? CASTLE_COL_P2;
-
-    // Castle hitbox rects (from server snapshot, top-left + size)
-    const castle1Hitbox = worldRectToScreen(cr1.x + cr1.w / 2, cr1.y + cr1.h / 2, cr1.w, cr1.h, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castle2Hitbox = worldRectToScreen(cr2.x + cr2.w / 2, cr2.y + cr2.h / 2, cr2.w, cr2.h, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-
-    // Castle sprite: fixed visual position, independent of hitbox
-    const castle1Visual = worldRectToScreen(CASTLE_P1_X, CASTLE_VISUAL_CENTER_Y, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-    const castle2Visual = worldRectToScreen(CASTLE_P2_X, CASTLE_VISUAL_CENTER_Y, CASTLE_COL_W, CASTLE_VISUAL_H, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-
-    // Sprite anchor is (0.5, 1) — position at center-x, bottom-y of visual rect
-    const leftCastleX = castle1Visual.x + castle1Visual.w / 2;
-    const leftCastleBaseY = castle1Visual.y + castle1Visual.h;
-    const rightCastleX = castle2Visual.x + castle2Visual.w / 2;
-    const rightCastleBaseY = castle2Visual.y + castle2Visual.h;
-
-    castlePlayer1Sprite.position.set(leftCastleX, leftCastleBaseY);
-    castlePlayer1Sprite.width = castle1Visual.w;
-    castlePlayer1Sprite.height = castle1Visual.h;
-
-    castlePlayer2Sprite.position.set(rightCastleX, rightCastleBaseY);
-    castlePlayer2Sprite.width = castle2Visual.w;
-    castlePlayer2Sprite.height = castle2Visual.h;
-
-    // Draw castle HP bars
-    const CASTLE_HP_MAX = 1000;
-    const CASTLE_HP_BAR_W = 60;
-    const CASTLE_HP_BAR_H = 6;
     const renderTime = Date.now() - INTERPOLATION_DELAY_MS;
     const pair = getInterpolationPair(snapshotsRef.current, renderTime);
-
-    if (castleHpGraphics) {
-      castleHpGraphics.clear();
-      if (pair) {
-        const castleHp = pair.b.castle;
-        const drawCastleHpBar = (cx: number, topY: number, hp: number) => {
-          const ratio = clamp(hp / CASTLE_HP_MAX, 0, 1);
-          const barX = cx - CASTLE_HP_BAR_W / 2;
-          const barY = topY - 12;
-          castleHpGraphics!.rect(barX, barY, CASTLE_HP_BAR_W, CASTLE_HP_BAR_H);
-          castleHpGraphics!.fill({ color: 0x1e293b, alpha: 0.8 });
-          const fillW = CASTLE_HP_BAR_W * ratio;
-          if (fillW > 0) {
-            const color = ratio > 0.6 ? 0x22c55e : ratio > 0.3 ? 0xf59e0b : 0xef4444;
-            castleHpGraphics!.rect(barX, barY, fillW, CASTLE_HP_BAR_H);
-            castleHpGraphics!.fill({ color, alpha: 0.9 });
-          }
-          castleHpGraphics!.rect(barX, barY, CASTLE_HP_BAR_W, CASTLE_HP_BAR_H);
-          castleHpGraphics!.stroke({ color: 0x475569, width: 1, alpha: 0.6 });
-        };
-        drawCastleHpBar(leftCastleX, castle1Hitbox.y, castleHp.player1);
-        drawCastleHpBar(rightCastleX, castle2Hitbox.y, castleHp.player2);
-      }
-    }
 
     let projectedBuildings: ProjectedBuilding[] = [];
     if (pair) {
       const latestSnapshot = pair.b;
       projectedBuildings = (latestSnapshot.buildings ?? []).map((b) => {
-        const footprint = getBuildingFootprint(b.creatureId);
+        const spriteSize = getBuildingSpriteSize(b.buildingId);
         const { screenX, screenY } = worldToScreen(b.x, b.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
         return {
           id: b.id,
           owner: b.owner,
-          creatureId: b.creatureId,
+          buildingId: b.buildingId,
           x: screenX,
           y: screenY,
           hp: b.hp,
           maxHp: b.maxHp,
-          spriteWidth: (footprint.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth,
-          spriteHeight: (footprint.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight,
+          spriteWidth: (spriteSize.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth,
+          spriteHeight: (spriteSize.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight,
         };
       });
       buildingSpriteLayer.renderBuildings(projectedBuildings);
@@ -359,7 +276,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     if (ghostSprite) {
       if (buildModeRef.current.active && mouseInCanvas) {
         const activeCreatureId = buildModeRef.current.creatureId;
-        const activeFootprint = getBuildingFootprint(activeCreatureId);
+        const activeBuildingId = CREATURE_TO_BUILDING[activeCreatureId];
+        const activeSpriteSize = getBuildingSpriteSize(activeBuildingId);
         const activeGhostTexture = ghostTextures.get(activeCreatureId);
         if (activeGhostTexture && ghostSprite.texture !== activeGhostTexture) {
           ghostSprite.texture = activeGhostTexture;
@@ -377,11 +295,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
         ghostSprite.visible = true;
         ghostSprite.position.set(snappedX, snappedY);
-        ghostSprite.width = (activeFootprint.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
-        ghostSprite.height = (activeFootprint.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
+        ghostSprite.width = (activeSpriteSize.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
+        ghostSprite.height = (activeSpriteSize.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
 
         const existingWorldBuildings = pair
-          ? (pair.b.buildings ?? []).map((b) => ({ x: b.x, y: b.y, creatureId: b.creatureId }))
+          ? (pair.b.buildings ?? []).map((b) => ({ x: b.x, y: b.y, buildingId: b.buildingId }))
           : [];
         const valid = isValidBuildingPlacement(
           worldX,
@@ -467,8 +385,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         return { x: u.x - u.selectionWidth / 2, y: u.y - u.selectionHeight * 0.96, width: u.selectionWidth, height: u.selectionHeight };
       });
       drawImageOutlines(imageOutlineGraphics, [
-        { x: castle1Visual.x, y: castle1Visual.y, width: castle1Visual.w, height: castle1Visual.h },
-        { x: castle2Visual.x, y: castle2Visual.y, width: castle2Visual.w, height: castle2Visual.h },
         ...buildingOutlines,
         ...unitOutlines,
       ]);
@@ -477,10 +393,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     currentHitboxes = defineGameHitboxes({
-      castles: {
-        player1: { x: castle1Hitbox.x, y: castle1Hitbox.y, width: castle1Hitbox.w, height: castle1Hitbox.h },
-        player2: { x: castle2Hitbox.x, y: castle2Hitbox.y, width: castle2Hitbox.w, height: castle2Hitbox.h },
-      },
       buildings: projectedBuildings,
       units: projectedUnits,
     });
@@ -491,12 +403,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       if (showCollisionDebugRef.current) {
         const COL_COLOR = 0xffff00;
 
-        // Castle collision rects (from server snapshot)
-        for (const ch of [castle1Hitbox, castle2Hitbox]) {
-          collisionDebugGraphics.rect(ch.x, ch.y, ch.w, ch.h).stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
-        }
-
-        // Building collision rects — same as selection (sprite-based, anchor 0.5/0.9)
+        // Building collision rects
         for (const b of projectedBuildings) {
           collisionDebugGraphics.rect(b.x - b.spriteWidth / 2, b.y - b.spriteHeight * 0.5, b.spriteWidth, b.spriteHeight)
             .stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
@@ -597,10 +504,16 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
               collisionDebugGraphics.circle(tx, ty, 3).fill({ color: pathColor, alpha: 0.7 });
             }
           } else {
-            // No waypoints, no chase: draw line toward enemy castle
-            const castleTarget = u.owner === "player1" ? CASTLE_COL_P2 : CASTLE_COL_P1;
-            const { screenX: cx, screenY: cy } = worldToScreen(castleTarget.x, castleTarget.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-            collisionDebugGraphics.moveTo(ux, uy).lineTo(cx, cy).stroke({ color: pathColor, width: 1, alpha: 0.3 });
+            // No waypoints, no chase: draw line toward enemy castle building
+            const enemyOwner = u.owner === "player1" ? "player2" : "player1";
+            const latestSnapshot = pair.b;
+            const enemyCastle = (latestSnapshot.buildings ?? []).find(
+              (b) => b.buildingId === "castle" && b.owner === enemyOwner,
+            );
+            if (enemyCastle) {
+              const { screenX: cx, screenY: cy } = worldToScreen(enemyCastle.x, enemyCastle.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
+              collisionDebugGraphics.moveTo(ux, uy).lineTo(cx, cy).stroke({ color: pathColor, width: 1, alpha: 0.3 });
+            }
           }
         }
       }
@@ -652,16 +565,16 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     pixiApp.canvas.addEventListener("pointerleave", onPointerLeave);
     pixiApp.canvas.addEventListener("pointerdown", onPointerDown);
 
+    // Load ghost textures for build mode preview (one per creature's building)
     const buildingTextures = await Promise.all(
-      CREATURE_IDS.map(async (creatureId) => ({
-        creatureId,
-        texture: await Assets.load<Texture>(getCreaturePresentation(creatureId).buildingTextureUrl),
-      })),
+      CREATURE_IDS.map(async (creatureId) => {
+        const buildingId = CREATURE_TO_BUILDING[creatureId];
+        return {
+          creatureId,
+          texture: await Assets.load<Texture>(getBuildingPresentation(buildingId).textureUrl),
+        };
+      }),
     );
-    const [castleP1Texture, castleP2Texture] = await Promise.all([
-      Assets.load<Texture>(CASTLE_PLAYER1_TEXTURE_URL),
-      Assets.load<Texture>(CASTLE_PLAYER2_TEXTURE_URL),
-    ]);
 
     if (destroyed) {
       pixiApp.destroy(true);
@@ -674,12 +587,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
     const sceneContainer = new Container();
 
-    castlePlayer1Sprite = new Sprite(castleP1Texture);
-    castlePlayer1Sprite.anchor.set(0.5, 1);
-
-    castlePlayer2Sprite = new Sprite(castleP2Texture);
-    castlePlayer2Sprite.anchor.set(0.5, 1);
-
     buildingContainer = new Container();
     buildingContainer.sortableChildren = true;
 
@@ -687,7 +594,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     unitContainer.sortableChildren = true;
 
     // Ghost sprite for build mode preview
-    ghostSprite = new Sprite(ghostTextures.get(DEFAULT_CREATURE_ID) ?? castleP1Texture);
+    const defaultGhostTexture = ghostTextures.get(DEFAULT_CREATURE_ID);
+    ghostSprite = new Sprite(defaultGhostTexture);
     ghostSprite.anchor.set(0.5, 0.5);
     ghostSprite.visible = false;
 
@@ -695,15 +603,11 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     collisionDebugGraphics = new Graphics();
     gridDebugGraphics = new Graphics();
     visionDebugGraphics = new Graphics();
-    castleHpGraphics = new Graphics();
     buildZoneGraphics = new Graphics();
     gameAreaGraphics = new Graphics();
 
     sceneContainer.addChild(gridDebugGraphics);
     sceneContainer.addChild(gameAreaGraphics);
-    sceneContainer.addChild(castlePlayer1Sprite);
-    sceneContainer.addChild(castlePlayer2Sprite);
-    sceneContainer.addChild(castleHpGraphics);
     sceneContainer.addChild(buildZoneGraphics);
     sceneContainer.addChild(buildingContainer);
     sceneContainer.addChild(unitContainer);

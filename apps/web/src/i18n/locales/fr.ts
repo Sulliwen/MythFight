@@ -89,13 +89,10 @@ const fr = {
     griffon: "Griffon",
   },
   buildings: {
-    golem: "Atelier du golem",
-    soldier: "Caserne",
-    griffon: "Perchoir",
-  },
-  castle: {
-    player1: "Chateau J1",
-    player2: "Chateau J2",
+    castle: "Chateau",
+    golem_workshop: "Atelier du golem",
+    barracks: "Caserne",
+    griffon_aery: "Perchoir",
   },
   debug: {
     title: "Debug",

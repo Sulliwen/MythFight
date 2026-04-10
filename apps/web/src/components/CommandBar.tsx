@@ -1,7 +1,8 @@
-import { CREATURE_BUILDING_STATS, CREATURE_IDS, getCreaturePresentation } from "../creature-config";
+import { CREATURE_IDS, getCreaturePresentation } from "../creature-config";
+import { getBuildingPresentation, CREATURE_TO_BUILDING } from "../building-config";
 import { useTranslation, type TranslationKey } from "../i18n";
 import type { BuildMode } from "./lane-canvas/types";
-import type { CreatureId, PlayerId, SelectionTarget, SnapshotMsg } from "../types";
+import type { BuildingId, CreatureId, PlayerId, SelectionTarget, SnapshotMsg } from "../types";
 
 type CommandBarProps = {
   buildMode: BuildMode;
@@ -13,8 +14,6 @@ type CommandBarProps = {
   onToggleProduction: (buildingId: string) => void;
   onForceSpawn: (buildingId: string) => void;
 };
-
-const CASTLE_HP_MAX = 1000;
 
 function hpColor(ratio: number): string {
   if (ratio > 0.6) return "#22c55e";
@@ -39,17 +38,6 @@ function HpBar({ hp, maxHp, label }: { hp: number; maxHp: number; label?: string
   );
 }
 
-function CastleInfo({ owner, hp }: { owner: string; hp: number }) {
-  const { t } = useTranslation();
-  const label = owner === "player1" ? t("castle.player1") : t("castle.player2");
-  return (
-    <div className="cmd-bar__info">
-      <strong className="cmd-bar__info-title">{label}</strong>
-      <HpBar hp={hp} maxHp={CASTLE_HP_MAX} label={t("stats.hp")} />
-    </div>
-  );
-}
-
 function SpawnProgress({ remaining, total }: { remaining: number; total: number }) {
   const { t } = useTranslation();
   const elapsed = total - remaining;
@@ -70,37 +58,31 @@ function SpawnProgress({ remaining, total }: { remaining: number; total: number 
   );
 }
 
-function BuildingInfo({ building }: { building: { creatureId: CreatureId; hp: number; maxHp: number; owner: string; spawnTicksRemaining: number; spawnIntervalTicks: number } }) {
+function BuildingInfo({ building }: { building: { buildingId: BuildingId; hp: number; maxHp: number; owner: string; spawnTicksRemaining: number; spawnIntervalTicks: number } }) {
   const { t } = useTranslation();
   const ownerLabel = building.owner === "player1" ? "J1" : "J2";
-  const presentation = getCreaturePresentation(building.creatureId);
+  const presentation = getBuildingPresentation(building.buildingId);
   return (
     <div className="cmd-bar__info">
-      <strong className="cmd-bar__info-title">{t(presentation.buildingNameKey)} ({ownerLabel})</strong>
+      <strong className="cmd-bar__info-title">{t(presentation.nameKey)} ({ownerLabel})</strong>
       <HpBar hp={building.hp} maxHp={building.maxHp} label={t("stats.hp")} />
-      <SpawnProgress remaining={building.spawnTicksRemaining} total={building.spawnIntervalTicks} />
+      {presentation.spawnsCreature && (
+        <SpawnProgress remaining={building.spawnTicksRemaining} total={building.spawnIntervalTicks} />
+      )}
     </div>
   );
 }
 
-function CastleStats() {
+function BuildingStats({ buildingId }: { buildingId: BuildingId }) {
   const { t } = useTranslation();
+  const presentation = getBuildingPresentation(buildingId);
   return (
     <div className="cmd-bar__stats-list">
-      <span>🛡️ {t("combat.armorType.fortified")}</span>
-      <span>🔰 5</span>
-    </div>
-  );
-}
-
-function BuildingStats({ creatureId }: { creatureId: CreatureId }) {
-  const { t } = useTranslation();
-  const stats = CREATURE_BUILDING_STATS[creatureId];
-  return (
-    <div className="cmd-bar__stats-list">
-      <span>🛡️ {t(`combat.armorType.${stats.armorType}`)}</span>
-      <span>🔰 {stats.armor}</span>
-      <span>⏱️ {(stats.spawnIntervalTicks / 20).toFixed(0)}s</span>
+      <span>🛡️ {t(`combat.armorType.${presentation.armorType}`)}</span>
+      <span>🔰 {presentation.armor}</span>
+      {presentation.spawnIntervalTicks != null && (
+        <span>⏱️ {(presentation.spawnIntervalTicks / 20).toFixed(0)}s</span>
+      )}
     </div>
   );
 }
@@ -165,19 +147,20 @@ export function CommandBar({
   let selectedBuilding: { id: string; paused: boolean; owner: string } | null = null;
 
   if (selection && latest) {
-    if (selection.kind === "castle") {
-      const hp = latest.castle[selection.owner];
-      centerContent = <CastleInfo owner={selection.owner} hp={hp} />;
-      statsContent = <CastleStats />;
-      showBuildActions = selection.owner === controlledPlayer;
-    } else if (selection.kind === "building") {
+    if (selection.kind === "building") {
       const building = latest.buildings?.find((b) => b.id === selection.id);
       if (building) {
         centerContent = <BuildingInfo building={building} />;
-        statsContent = <BuildingStats creatureId={building.creatureId} />;
+        statsContent = <BuildingStats buildingId={building.buildingId} />;
         if (building.owner === controlledPlayer) {
-          showBuildingActions = true;
-          selectedBuilding = { id: building.id, paused: building.paused, owner: building.owner };
+          if (building.buildingId === "castle") {
+            // Castle selected by owner: show build actions
+            showBuildActions = true;
+          } else {
+            // Spawner building selected by owner: show production controls
+            showBuildingActions = true;
+            selectedBuilding = { id: building.id, paused: building.paused, owner: building.owner };
+          }
         }
       } else {
         centerContent = <span className="cmd-bar__center-empty">{t("ui.buildingDestroyed")}</span>;
@@ -198,7 +181,8 @@ export function CommandBar({
       return (
         <>
           {CREATURE_IDS.map((creatureId) => {
-            const presentation = getCreaturePresentation(creatureId);
+            const buildingId = CREATURE_TO_BUILDING[creatureId];
+            const buildingPresentation = getBuildingPresentation(buildingId);
             const isActive = buildMode.active && buildMode.creatureId === creatureId;
             return (
               <button
@@ -207,11 +191,11 @@ export function CommandBar({
                 className={`cmd-bar__action-btn ${isActive ? "cmd-bar__action-btn--active" : ""}`}
                 onClick={() => onToggleBuildMode(creatureId)}
                 disabled={disabled}
-                title={t("actions.build", { building: t(presentation.buildingNameKey) })}
+                title={t("actions.build", { building: t(buildingPresentation.nameKey) })}
               >
                 <img
-                  src={presentation.buildingTextureUrl}
-                  alt={t(presentation.buildingNameKey)}
+                  src={buildingPresentation.textureUrl}
+                  alt={t(buildingPresentation.nameKey)}
                   className="cmd-bar__action-icon"
                 />
               </button>
