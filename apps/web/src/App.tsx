@@ -7,6 +7,7 @@ import type { BuildMode } from "./components/lane-canvas/types";
 import { MenuOverlay } from "./components/menu/MenuOverlay";
 import { SpawnButton } from "./components/SpawnButton";
 import { VictoryOverlay } from "./components/victory/VictoryOverlay";
+import { DEFAULT_CREATURE_ID } from "./creature-config";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { usePwaInstall } from "./hooks/usePwaInstall";
 import { usePwaRuntime } from "./hooks/usePwaRuntime";
@@ -25,19 +26,21 @@ function App() {
   const qsPlayer = new URLSearchParams(window.location.search).get("player");
   const initialPlayer: PlayerId = qsPlayer === "player2" ? "player2" : "player1";
   const [controlledPlayer, setControlledPlayer] = useState<PlayerId>(initialPlayer);
+  const isDev = import.meta.env.DEV;
   const [debugPanelVisible, setDebugPanelVisible] = useState(false);
-  const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(true);
-  const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(true);
-  const [showGameAreaDebug, setShowGameAreaDebug] = useState(true);
-  const [showCollisionDebug, setShowCollisionDebug] = useState(true);
-  const [showGridDebug, setShowGridDebug] = useState(true);
-  const [showAttackRangeDebug, setShowAttackRangeDebug] = useState(true);
-  const [showVisionDebug, setShowVisionDebug] = useState(true);
+  const [showImageOutlineDebug, setShowImageOutlineDebug] = useState(isDev);
+  const [showBuildZoneDebug, setShowBuildZoneDebug] = useState(isDev);
+  const [showGameAreaDebug, setShowGameAreaDebug] = useState(isDev);
+  const [showCollisionDebug, setShowCollisionDebug] = useState(isDev);
+  const [showGridDebug, setShowGridDebug] = useState(isDev);
+  const [showAttackRangeDebug, setShowAttackRangeDebug] = useState(isDev);
+  const [showVisionDebug, setShowVisionDebug] = useState(isDev);
+  const [showPathwayDebug, setShowPathwayDebug] = useState(isDev);
   const [cmdBarVisible, setCmdBarVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [dismissedRoundId, setDismissedRoundId] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
-  const [buildMode, setBuildMode] = useState<BuildMode>({ active: false, creatureId: "golem" });
+  const [buildMode, setBuildMode] = useState<BuildMode>({ active: false, creatureId: DEFAULT_CREATURE_ID });
   const [selection, setSelection] = useState<SelectionTarget>(null);
 
   const { installPromptAvailable, promptInstall, showIosInstallHint } = usePwaInstall();
@@ -97,8 +100,11 @@ function App() {
     [sendPlaceBuilding],
   );
 
-  const toggleBuildMode = () => {
-    setBuildMode((prev) => ({ ...prev, active: !prev.active }));
+  const toggleBuildMode = (creatureId: CreatureId) => {
+    setBuildMode((prev) => ({
+      active: prev.creatureId !== creatureId || !prev.active,
+      creatureId,
+    }));
   };
 
   const showServerUnavailable = status === "closed" || status === "error";
@@ -145,6 +151,7 @@ function App() {
           showGridDebug={showGridDebug}
           showAttackRangeDebug={showAttackRangeDebug}
           showVisionDebug={showVisionDebug}
+          showPathwayDebug={showPathwayDebug}
           buildMode={buildMode}
           onPlaceBuilding={handlePlaceBuilding}
           onSelect={setSelection}
@@ -237,7 +244,7 @@ function App() {
           </button>
           {cmdBarVisible && (
             <CommandBar
-              buildModeActive={buildMode.active}
+              buildMode={buildMode}
               onToggleBuildMode={toggleBuildMode}
               disabled={status !== "connected"}
               selection={selection}
@@ -277,6 +284,8 @@ function App() {
             onToggleAttackRangeDebug={() => setShowAttackRangeDebug((prev) => !prev)}
             showVisionDebug={showVisionDebug}
             onToggleVisionDebug={() => setShowVisionDebug((prev) => !prev)}
+            showPathwayDebug={showPathwayDebug}
+            onTogglePathwayDebug={() => setShowPathwayDebug((prev) => !prev)}
             onToggleAllOverlays={(on: boolean) => {
               setShowImageOutlineDebug(on);
               setShowBuildZoneDebug(on);
@@ -285,6 +294,7 @@ function App() {
               setShowGridDebug(on);
               setShowAttackRangeDebug(on);
               setShowVisionDebug(on);
+              setShowPathwayDebug(on);
             }}
             onUpdateCreatureStats={sendUpdateCreatureStats}
             snapshots={snapshots}

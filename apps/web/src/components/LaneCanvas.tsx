@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { startLaneCanvasRuntime } from "./lane-canvas/runtime";
 import type { BuildMode, LaneCanvasProps } from "./lane-canvas/types";
+import { DEFAULT_CREATURE_ID } from "../creature-config";
 
 export type { LaneCanvasProps } from "./lane-canvas/types";
 
-const DEFAULT_BUILD_MODE: BuildMode = { active: false, creatureId: "golem" };
+const DEFAULT_BUILD_MODE: BuildMode = { active: false, creatureId: DEFAULT_CREATURE_ID };
 
 export function LaneCanvas({
   snapshots,
@@ -15,6 +16,7 @@ export function LaneCanvas({
   showGridDebug = false,
   showAttackRangeDebug = false,
   showVisionDebug = false,
+  showPathwayDebug = false,
   buildMode = DEFAULT_BUILD_MODE,
   onPlaceBuilding,
   onSelect,
@@ -29,6 +31,7 @@ export function LaneCanvas({
   const showGridDebugRef = useRef(showGridDebug);
   const showAttackRangeDebugRef = useRef(showAttackRangeDebug);
   const showVisionDebugRef = useRef(showVisionDebug);
+  const showPathwayDebugRef = useRef(showPathwayDebug);
   const buildModeRef = useRef(buildMode);
   const onPlaceBuildingRef = useRef(onPlaceBuilding);
   const onSelectRef = useRef(onSelect);
@@ -67,6 +70,10 @@ export function LaneCanvas({
   }, [showVisionDebug]);
 
   useEffect(() => {
+    showPathwayDebugRef.current = showPathwayDebug;
+  }, [showPathwayDebug]);
+
+  useEffect(() => {
     buildModeRef.current = buildMode;
   }, [buildMode]);
 
@@ -96,6 +103,7 @@ export function LaneCanvas({
       showGridDebugRef,
       showAttackRangeDebugRef,
       showVisionDebugRef,
+      showPathwayDebugRef,
       buildModeRef,
       onPlaceBuildingRef,
       onSelectRef,

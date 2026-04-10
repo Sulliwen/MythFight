@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CREATURE_IDS, getCreaturePresentation } from "../creature-config";
 import type { AttackType, ArmorType, CreatureStatsSnapshot, PlayerId, SnapshotMsg } from "../types";
 import { useDraggablePanel } from "../hooks/useDraggablePanel";
 import type { CreatureStatUpdatePayload, CreatureStatUpdateValue } from "../hooks/useGameSocket";
@@ -30,6 +31,8 @@ type HudProps = {
   onToggleAttackRangeDebug: () => void;
   showVisionDebug: boolean;
   onToggleVisionDebug: () => void;
+  showPathwayDebug: boolean;
+  onTogglePathwayDebug: () => void;
   onToggleAllOverlays: (on: boolean) => void;
   onUpdateCreatureStats: (creatureId: string, stats: CreatureStatUpdatePayload) => void;
   snapshots: SnapshotMsg[];
@@ -44,7 +47,7 @@ type HudProps = {
 type StatDef = { key: string; label: string; min: number; max: number; step: number };
 type EnumStatDef<T extends string> = { key: string; label: string; options: readonly T[] };
 
-const GOLEM_STAT_DEFS: StatDef[] = [
+const CREATURE_STAT_DEFS: StatDef[] = [
   { key: "hp", label: "PV", min: 1, max: 1000, step: 1 },
   { key: "moveSpeedPerTick", label: "Vitesse", min: 1, max: 30, step: 1 },
   { key: "attackDamage", label: "Degats", min: 1, max: 200, step: 1 },
@@ -74,7 +77,7 @@ const ARMOR_TYPE_OPTIONS: readonly ArmorType[] = [
   "unarmored",
 ];
 
-const GOLEM_ENUM_STAT_DEFS: [
+const CREATURE_ENUM_STAT_DEFS: [
   EnumStatDef<AttackType>,
   EnumStatDef<ArmorType>,
 ] = [
@@ -87,9 +90,11 @@ function formatCastleHp(value: number): string {
 }
 
 function CreatureStatsEditor({
+  creatureId,
   initialStats,
   onUpdate,
 }: {
+  creatureId: string;
   initialStats: CreatureStatsSnapshot;
   onUpdate: (creatureId: string, stats: CreatureStatUpdatePayload) => void;
 }) {
@@ -97,12 +102,12 @@ function CreatureStatsEditor({
 
   const handleChange = (key: keyof CreatureStatsSnapshot, val: CreatureStatUpdateValue) => {
     setValues((prev) => ({ ...prev, [key]: val }) as CreatureStatsSnapshot);
-    onUpdate("golem", { [key]: val });
+    onUpdate(creatureId, { [key]: val });
   };
 
   return (
     <>
-      {GOLEM_STAT_DEFS.map((def) => (
+      {CREATURE_STAT_DEFS.map((def) => (
         <div key={def.key} className="hud-row hud-row--stat-editor">
           <span className="hud-stat-label">{def.label}</span>
           <input
@@ -125,7 +130,7 @@ function CreatureStatsEditor({
           />
         </div>
       ))}
-      {GOLEM_ENUM_STAT_DEFS.map((def) => (
+      {CREATURE_ENUM_STAT_DEFS.map((def) => (
         <div key={def.key} className="hud-row hud-row--stat-editor">
           <span className="hud-stat-label">{def.label}</span>
           <select
@@ -194,6 +199,8 @@ export function Hud(props: HudProps) {
     onToggleAttackRangeDebug,
     showVisionDebug,
     onToggleVisionDebug,
+    showPathwayDebug,
+    onTogglePathwayDebug,
     onToggleAllOverlays,
     onUpdateCreatureStats,
     snapshots,
@@ -317,8 +324,8 @@ export function Hud(props: HudProps) {
         <div className="hud-row">
           <span>Tout</span>
           {(() => {
-            const allOn = showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug;
-            const allOff = !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug;
+            const allOn = showImageOutlineDebug && showBuildZoneDebug && showGameAreaDebug && showCollisionDebug && showGridDebug && showAttackRangeDebug && showVisionDebug && showPathwayDebug;
+            const allOff = !showImageOutlineDebug && !showBuildZoneDebug && !showGameAreaDebug && !showCollisionDebug && !showGridDebug && !showAttackRangeDebug && !showVisionDebug && !showPathwayDebug;
             return (
               <>
                 <button
@@ -409,17 +416,37 @@ export function Hud(props: HudProps) {
             {showGridDebug ? "on" : "off"}
           </button>
         </div>
+        <div className="hud-row">
+          <span>Chemins unites</span>
+          <button
+            type="button"
+            className={`hud-inline-toggle ${showPathwayDebug ? "hud-inline-toggle--on" : "hud-inline-toggle--off"}`}
+            onClick={onTogglePathwayDebug}
+          >
+            {showPathwayDebug ? "on" : "off"}
+          </button>
+        </div>
       </details>
 
-      <details className="hud-submenu">
-        <summary>Golem Stats</summary>
-        {(() => {
-          const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
-          const serverGolem = latest?.creatureStats?.golem;
-          if (!serverGolem) return <span className="hud-last-message">En attente du serveur...</span>;
-          return <CreatureStatsEditor key="golem" initialStats={serverGolem} onUpdate={onUpdateCreatureStats} />;
-        })()}
-      </details>
+      {CREATURE_IDS.map((creatureId) => {
+        const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+        const serverStats = latest?.creatureStats?.[creatureId];
+        const presentation = getCreaturePresentation(creatureId);
+        return (
+          <details key={creatureId} className="hud-submenu">
+            <summary>{presentation.unitName} Stats</summary>
+            {serverStats ? (
+              <CreatureStatsEditor
+                creatureId={creatureId}
+                initialStats={serverStats}
+                onUpdate={onUpdateCreatureStats}
+              />
+            ) : (
+              <span className="hud-last-message">En attente du serveur...</span>
+            )}
+          </details>
+        );
+      })}
     </aside>
   );
 }

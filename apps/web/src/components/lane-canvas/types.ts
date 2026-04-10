@@ -16,6 +16,7 @@ export type LaneCanvasProps = {
   showGridDebug?: boolean;
   showAttackRangeDebug?: boolean;
   showVisionDebug?: boolean;
+  showPathwayDebug?: boolean;
   buildMode?: BuildMode;
   onPlaceBuilding?: (worldX: number, worldY: number, creatureId: CreatureId) => void;
   onSelect?: (target: SelectionTarget) => void;
@@ -31,6 +32,7 @@ export type LaneCanvasStateRefs = {
   showGridDebugRef: MutableRefObject<boolean>;
   showAttackRangeDebugRef: MutableRefObject<boolean>;
   showVisionDebugRef: MutableRefObject<boolean>;
+  showPathwayDebugRef: MutableRefObject<boolean>;
   buildModeRef: MutableRefObject<BuildMode>;
   onPlaceBuildingRef: MutableRefObject<((worldX: number, worldY: number, creatureId: CreatureId) => void) | undefined>;
   onSelectRef: MutableRefObject<((target: SelectionTarget) => void) | undefined>;
@@ -49,6 +51,7 @@ export type InterpolationPair = {
 
 export type InterpolatedUnit = {
   id: string;
+  creatureId: CreatureId;
   owner: PlayerId;
   x: number;
   y: number;
@@ -64,6 +67,7 @@ export type InterpolatedUnit = {
 
 export type ProjectedUnit = {
   id: string;
+  creatureId: CreatureId;
   owner: PlayerId;
   x: number;
   y: number;
@@ -75,6 +79,8 @@ export type ProjectedUnit = {
   attackIntervalTicks?: number;
   attackHitOffsetTicks?: number;
   attackTargetId?: string;
+  hitboxRadius: number;
+  renderScale: number;
   selectionWidth: number;
   selectionHeight: number;
 };

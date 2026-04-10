@@ -2,7 +2,6 @@ import { Application, Assets, Container, Graphics, Sprite, type Texture } from "
 import {
   CASTLE_PLAYER1_TEXTURE_URL,
   CASTLE_PLAYER2_TEXTURE_URL,
-  GOLEM_HOUSE_TEXTURE_URL,
   INTERPOLATION_DELAY_MS,
   WORLD_MAX_X,
   WORLD_MAX_Y,
@@ -16,6 +15,8 @@ import { getInterpolationPair, interpolateUnits } from "./interpolation";
 import { clamp, getCanvasSize } from "./math";
 import { UnitSpriteLayer } from "./unit-sprite-layer";
 import type { LaneCanvasRuntimeBindings, ProjectedBuilding, ProjectedUnit } from "./types";
+import { CREATURE_IDS, DEFAULT_CREATURE_ID, getBuildingFootprint, getCreaturePresentation } from "../../creature-config";
+import type { CreatureId, CreatureStatsSnapshot, SnapshotMsg } from "../../types";
 
 function projectUnits(
   snapshotsUnits: ReturnType<typeof interpolateUnits>,
@@ -30,6 +31,7 @@ function projectUnits(
       const y = gameAreaY + ((unit.y - WORLD_MIN_Y) / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
       return {
         id: unit.id,
+        creatureId: unit.creatureId,
         owner: unit.owner,
         x,
         y,
@@ -41,6 +43,8 @@ function projectUnits(
         attackIntervalTicks: unit.attackIntervalTicks,
         attackHitOffsetTicks: unit.attackHitOffsetTicks,
         attackTargetId: unit.attackTargetId,
+        hitboxRadius: 0,
+        renderScale: 0,
         selectionWidth: 0,
         selectionHeight: 0,
       };
@@ -48,10 +52,6 @@ function projectUnits(
     .sort((left, right) => left.y - right.y);
 }
 
-// Must match server world constants (world units)
-const BUILDING_HITBOX_W = 70;
-const BUILDING_HITBOX_H = 70;
-const CREATURE_COL_RADIUS = 12;
 // Castle visual position (fixed — matches server)
 const CASTLE_VISUAL_CENTER_Y = 280;
 const CASTLE_VISUAL_H = 100;
@@ -64,9 +64,20 @@ const CASTLE_COL_BOTTOM_INSET = 20;
 const CASTLE_COL_BOTTOM = CASTLE_VISUAL_CENTER_Y + CASTLE_VISUAL_H / 2 - CASTLE_COL_BOTTOM_INSET;
 const CASTLE_COL_P1 = { x: CASTLE_P1_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
 const CASTLE_COL_P2 = { x: CASTLE_P2_X - CASTLE_COL_W / 2, y: CASTLE_COL_BOTTOM - CASTLE_COL_H, w: CASTLE_COL_W, h: CASTLE_COL_H };
-const CREATURE_ATTACK_RANGE = 20; // must match server CreatureStats.attackRange
-const CREATURE_VISION_RANGE = 100; // must match server CreatureStats.visionRange
 const PATHFINDING_CELL_SIZE = 20;
+
+const FALLBACK_CREATURE_STATS: CreatureStatsSnapshot = {
+  hp: 100,
+  moveSpeedPerTick: 1,
+  attackDamage: 50,
+  attackType: "siege",
+  attackRange: 5,
+  attackIntervalTicks: 100,
+  armorType: "heavy",
+  armor: 50,
+  hitboxRadius: 12,
+  visionRange: 100,
+};
 
 // Convert screen coordinates to world coordinates, clamping to valid building placement bounds
 function screenToWorld(
@@ -76,11 +87,13 @@ function screenToWorld(
   gameAreaY: number,
   gameAreaWidth: number,
   gameAreaHeight: number,
+  creatureId: CreatureId,
 ): { worldX: number; worldY: number } {
+  const footprint = getBuildingFootprint(creatureId);
   const rawX = WORLD_MIN_X + ((screenX - gameAreaX) / gameAreaWidth) * (WORLD_MAX_X - WORLD_MIN_X);
   const rawY = WORLD_MIN_Y + ((screenY - gameAreaY) / gameAreaHeight) * (WORLD_MAX_Y - WORLD_MIN_Y);
-  const worldX = clamp(rawX, WORLD_MIN_X + BUILDING_HITBOX_W / 2, WORLD_MAX_X - BUILDING_HITBOX_W / 2);
-  const worldY = clamp(rawY, WORLD_MIN_Y + BUILDING_HITBOX_H / 2, WORLD_MAX_Y - BUILDING_HITBOX_H / 2);
+  const worldX = clamp(rawX, WORLD_MIN_X + footprint.width / 2, WORLD_MAX_X - footprint.width / 2);
+  const worldY = clamp(rawY, WORLD_MIN_Y + footprint.height / 2, WORLD_MAX_Y - footprint.height / 2);
   return { worldX, worldY };
 }
 
@@ -88,18 +101,21 @@ function isValidBuildingPlacement(
   worldX: number,
   worldY: number,
   player: "player1" | "player2",
-  existingBuildings: { x: number; y: number }[],
+  creatureId: CreatureId,
+  existingBuildings: { x: number; y: number; creatureId: CreatureId }[],
 ): boolean {
   // Must be on own side
   const midX = (WORLD_MIN_X + WORLD_MAX_X) / 2;
   if (player === "player1" ? worldX > midX : worldX < midX) return false;
 
   // Must not overlap existing buildings (AABB collision)
-  const hw = BUILDING_HITBOX_W / 2;
-  const hh = BUILDING_HITBOX_H / 2;
+  const footprint = getBuildingFootprint(creatureId);
+  const hw = footprint.width / 2;
+  const hh = footprint.height / 2;
   for (const b of existingBuildings) {
-    const eHw = BUILDING_HITBOX_W / 2;
-    const eHh = BUILDING_HITBOX_H / 2;
+    const existingFootprint = getBuildingFootprint(b.creatureId);
+    const eHw = existingFootprint.width / 2;
+    const eHh = existingFootprint.height / 2;
     if (
       worldX - hw < b.x + eHw &&
       worldX + hw > b.x - eHw &&
@@ -138,6 +154,10 @@ function worldToScreenRadius(r: number, gaW: number): number {
   return (r / (WORLD_MAX_X - WORLD_MIN_X)) * gaW;
 }
 
+function getCreatureStats(snapshot: SnapshotMsg | null, creatureId: CreatureId): CreatureStatsSnapshot {
+  return snapshot?.creatureStats?.[creatureId] ?? FALLBACK_CREATURE_STATS;
+}
+
 export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () => void {
   const {
     host,
@@ -149,6 +169,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     showGridDebugRef,
     showAttackRangeDebugRef,
     showVisionDebugRef,
+    showPathwayDebugRef,
     buildModeRef,
     onPlaceBuildingRef,
     onSelectRef,
@@ -166,7 +187,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
   let unitSpriteLayer: UnitSpriteLayer | null = null;
   let buildingSpriteLayer: BuildingSpriteLayer | null = null;
   let ghostSprite: Sprite | null = null;
-  let ghostTexture: Texture | null = null;
+  const ghostTextures = new Map<CreatureId, Texture>();
   let castleHpGraphics: Graphics | null = null;
   let collisionDebugGraphics: Graphics | null = null;
   let gridDebugGraphics: Graphics | null = null;
@@ -209,6 +230,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         sx, sy,
         currentGameArea.x, currentGameArea.y,
         currentGameArea.width, currentGameArea.height,
+        buildModeRef.current.creatureId,
       );
       onPlaceBuildingRef.current?.(worldX, worldY, buildModeRef.current.creatureId);
       return;
@@ -310,16 +332,23 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       }
     }
 
-    // Render buildings from snapshot — size sprites to match world hitbox
-    const buildingScreenW = (BUILDING_HITBOX_W / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
-    const buildingScreenH = (BUILDING_HITBOX_H / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
-
     let projectedBuildings: ProjectedBuilding[] = [];
     if (pair) {
       const latestSnapshot = pair.b;
       projectedBuildings = (latestSnapshot.buildings ?? []).map((b) => {
+        const footprint = getBuildingFootprint(b.creatureId);
         const { screenX, screenY } = worldToScreen(b.x, b.y, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight);
-        return { id: b.id, owner: b.owner, creatureId: b.creatureId, x: screenX, y: screenY, hp: b.hp, maxHp: b.maxHp, spriteWidth: buildingScreenW, spriteHeight: buildingScreenH };
+        return {
+          id: b.id,
+          owner: b.owner,
+          creatureId: b.creatureId,
+          x: screenX,
+          y: screenY,
+          hp: b.hp,
+          maxHp: b.maxHp,
+          spriteWidth: (footprint.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth,
+          spriteHeight: (footprint.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight,
+        };
       });
       buildingSpriteLayer.renderBuildings(projectedBuildings);
     } else {
@@ -327,11 +356,19 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     // Render ghost sprite in build mode (snap to clamped world position)
-    if (ghostSprite && ghostTexture) {
+    if (ghostSprite) {
       if (buildModeRef.current.active && mouseInCanvas) {
+        const activeCreatureId = buildModeRef.current.creatureId;
+        const activeFootprint = getBuildingFootprint(activeCreatureId);
+        const activeGhostTexture = ghostTextures.get(activeCreatureId);
+        if (activeGhostTexture && ghostSprite.texture !== activeGhostTexture) {
+          ghostSprite.texture = activeGhostTexture;
+        }
+
         const { worldX, worldY } = screenToWorld(
           mouseScreenX, mouseScreenY,
           gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight,
+          activeCreatureId,
         );
         const { screenX: snappedX, screenY: snappedY } = worldToScreen(
           worldX, worldY,
@@ -340,13 +377,19 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
         ghostSprite.visible = true;
         ghostSprite.position.set(snappedX, snappedY);
-        ghostSprite.width = buildingScreenW;
-        ghostSprite.height = buildingScreenH;
+        ghostSprite.width = (activeFootprint.width / (WORLD_MAX_X - WORLD_MIN_X)) * gameAreaWidth;
+        ghostSprite.height = (activeFootprint.height / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
 
         const existingWorldBuildings = pair
-          ? (pair.b.buildings ?? []).map((b) => ({ x: b.x, y: b.y }))
+          ? (pair.b.buildings ?? []).map((b) => ({ x: b.x, y: b.y, creatureId: b.creatureId }))
           : [];
-        const valid = isValidBuildingPlacement(worldX, worldY, controlledPlayerRef.current, existingWorldBuildings);
+        const valid = isValidBuildingPlacement(
+          worldX,
+          worldY,
+          controlledPlayerRef.current,
+          activeCreatureId,
+          existingWorldBuildings,
+        );
         ghostSprite.tint = valid ? 0xffffff : 0xff4444;
         ghostSprite.alpha = 0.6;
       } else {
@@ -388,29 +431,30 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     }
 
     let projectedUnits: ProjectedUnit[] = [];
-    const referenceFrameHeight = unitSpriteLayer.getReferenceFrameHeight();
-    const golemScale = clamp((gameAreaHeight * 0.10) / referenceFrameHeight, 0.08, 0.24);
-    const unitSelectionWidth = referenceFrameHeight * golemScale;
-    const unitSelectionHeight = referenceFrameHeight * golemScale;
     if (pair) {
+      const activeUnitSpriteLayer = unitSpriteLayer;
       const interpolatedUnits = interpolateUnits(pair.a.units, pair.b.units, pair.alpha);
-      projectedUnits = projectUnits(interpolatedUnits, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight).map((unit) => ({
-        ...unit,
-        selectionWidth: unitSelectionWidth,
-        selectionHeight: unitSelectionHeight,
-      }));
+      projectedUnits = projectUnits(interpolatedUnits, gameAreaX, gameAreaY, gameAreaWidth, gameAreaHeight).map((unit) => {
+        const creatureStats = getCreatureStats(pair.b, unit.creatureId);
+        const presentation = getCreaturePresentation(unit.creatureId);
+        const referenceFrameSize = activeUnitSpriteLayer.getReferenceFrameSize(unit.creatureId);
+        const baseScale = clamp((gameAreaHeight * 0.10) / referenceFrameSize.height, 0.08, 0.24);
+        const renderScale = baseScale * presentation.unitScale;
+        return {
+          ...unit,
+          hitboxRadius: worldToScreenRadius(creatureStats.hitboxRadius, gameAreaWidth),
+          renderScale,
+          selectionWidth: referenceFrameSize.width * renderScale,
+          selectionHeight: referenceFrameSize.height * renderScale,
+        };
+      });
 
       const unitYOffset = 0;
 
-      unitSpriteLayer.renderUnits(projectedUnits, golemScale, unitYOffset);
+      unitSpriteLayer.renderUnits(projectedUnits, unitYOffset);
     } else {
       unitSpriteLayer.clear();
     }
-
-    // Building hitboxes use sprite dimensions with anchor (0.5, 0.9) to match visuals
-
-    // Compute unified hitbox radius for units (from world-unit collision radius)
-    const unitHitboxScreenRadius = worldToScreenRadius(CREATURE_COL_RADIUS, gameAreaWidth);
 
     if (showImageOutlineDebugRef.current) {
       const buildingOutlines = projectedBuildings.map((b) => ({
@@ -419,12 +463,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         width: b.spriteWidth,
         height: b.spriteHeight,
       }));
-      const refHeight = unitSpriteLayer.getReferenceFrameHeight();
-      const refWidth = refHeight; // frames are roughly square
       const unitOutlines = projectedUnits.map((u) => {
-        const sw = u.selectionWidth || refWidth * golemScale;
-        const sh = u.selectionHeight || refHeight * golemScale;
-        return { x: u.x - sw / 2, y: u.y - sh * 0.96, width: sw, height: sh };
+        return { x: u.x - u.selectionWidth / 2, y: u.y - u.selectionHeight * 0.96, width: u.selectionWidth, height: u.selectionHeight };
       });
       drawImageOutlines(imageOutlineGraphics, [
         { x: castle1Visual.x, y: castle1Visual.y, width: castle1Visual.w, height: castle1Visual.h },
@@ -443,7 +483,6 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       },
       buildings: projectedBuildings,
       units: projectedUnits,
-      unitHitboxRadius: unitHitboxScreenRadius,
     });
 
     // Draw collision hitboxes from server world coordinates (yellow)
@@ -464,9 +503,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
         }
 
         // Unit collision circles
-        const unitRadiusScreen = worldToScreenRadius(CREATURE_COL_RADIUS, gameAreaWidth);
         for (const u of projectedUnits) {
-          collisionDebugGraphics.circle(u.x, u.y, unitRadiusScreen)
+          collisionDebugGraphics.circle(u.x, u.y, u.hitboxRadius)
             .stroke({ color: COL_COLOR, width: 2, alpha: 0.8 });
         }
 
@@ -474,12 +512,13 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
 
       // Draw attack range circles and attack target points
       if (showAttackRangeDebugRef.current) {
-        const attackRangeScreen = worldToScreenRadius(CREATURE_COL_RADIUS + CREATURE_ATTACK_RANGE, gameAreaWidth);
         const RANGE_COLOR = 0xff8800;
         const ATK_POINT_COLOR = 0xff0000;
         const latestForRange = pair ? pair.b.units : [];
 
         for (const u of projectedUnits) {
+          const creatureStats = getCreatureStats(pair?.b ?? null, u.creatureId);
+          const attackRangeScreen = worldToScreenRadius(creatureStats.hitboxRadius + creatureStats.attackRange, gameAreaWidth);
           collisionDebugGraphics.circle(u.x, u.y, attackRangeScreen)
             .stroke({ color: RANGE_COLOR, width: 1, alpha: 0.5 });
         }
@@ -525,8 +564,8 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       }
     }
 
-    // Draw unit waypoint paths (always visible)
-    if (collisionDebugGraphics && pair) {
+    // Draw unit waypoint paths
+    if (showPathwayDebugRef.current && collisionDebugGraphics && pair) {
       const PATH_COLOR = 0x00ffaa;
       const CHASE_PATH_COLOR = 0xff88ff;
       const latestUnits = pair.b.units;
@@ -571,9 +610,10 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     if (visionDebugGraphics) {
       visionDebugGraphics.clear();
       if (showVisionDebugRef.current) {
-        const visionRadiusScreenX = worldToScreenRadius(CREATURE_VISION_RANGE, gameAreaWidth);
-        const visionRadiusScreenY = (CREATURE_VISION_RANGE / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
         for (const u of projectedUnits) {
+          const creatureStats = getCreatureStats(pair?.b ?? null, u.creatureId);
+          const visionRadiusScreenX = worldToScreenRadius(creatureStats.visionRange, gameAreaWidth);
+          const visionRadiusScreenY = (creatureStats.visionRange / (WORLD_MAX_Y - WORLD_MIN_Y)) * gameAreaHeight;
           const color = u.owner === "player1" ? 0x4a9eff : 0xff6b6b;
           visionDebugGraphics.ellipse(u.x, u.y, visionRadiusScreenX, visionRadiusScreenY)
             .fill({ color, alpha: 0.08 });
@@ -612,10 +652,15 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     pixiApp.canvas.addEventListener("pointerleave", onPointerLeave);
     pixiApp.canvas.addEventListener("pointerdown", onPointerDown);
 
-    const [castleP1Texture, castleP2Texture, golemHouseTexture] = await Promise.all([
+    const buildingTextures = await Promise.all(
+      CREATURE_IDS.map(async (creatureId) => ({
+        creatureId,
+        texture: await Assets.load<Texture>(getCreaturePresentation(creatureId).buildingTextureUrl),
+      })),
+    );
+    const [castleP1Texture, castleP2Texture] = await Promise.all([
       Assets.load<Texture>(CASTLE_PLAYER1_TEXTURE_URL),
       Assets.load<Texture>(CASTLE_PLAYER2_TEXTURE_URL),
-      Assets.load<Texture>(GOLEM_HOUSE_TEXTURE_URL),
     ]);
 
     if (destroyed) {
@@ -623,7 +668,9 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
       return;
     }
 
-    ghostTexture = golemHouseTexture;
+    for (const { creatureId, texture } of buildingTextures) {
+      ghostTextures.set(creatureId, texture);
+    }
 
     const sceneContainer = new Container();
 
@@ -640,7 +687,7 @@ export function startLaneCanvasRuntime(bindings: LaneCanvasRuntimeBindings): () 
     unitContainer.sortableChildren = true;
 
     // Ghost sprite for build mode preview
-    ghostSprite = new Sprite(golemHouseTexture);
+    ghostSprite = new Sprite(ghostTextures.get(DEFAULT_CREATURE_ID) ?? castleP1Texture);
     ghostSprite.anchor.set(0.5, 0.5);
     ghostSprite.visible = false;
 
